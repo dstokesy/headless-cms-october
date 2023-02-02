@@ -1,0 +1,157 @@
+1675336668a:1:{s:15:"maintenance.htm";a:9:{s:8:"fileName";s:15:"maintenance.htm";s:7:"content";s:2121:"title = "Maintenance"
+url = "/maintenance"
+is_hidden = 1
+hide_from_search_engines = 1
+==
+<?php
+/*
+
+To enable this page, go to Admin -> Settings -> Maintenance mode.
+The clients logo can be set in Admin -> Settings -> Customize backend
+
+*/
+
+use Backend\Models\BrandSetting;
+
+function onStart() {
+    $settings = BrandSetting::instance();
+    $this['logo'] = $settings->logo;
+}
+?>
+==
+<!DOCTYPE html>
+<html>
+    <head>
+        <title>Please check back later</title>
+        <link href="https://fonts.googleapis.com/css?family=Source+Sans+Pro:400,700" rel="stylesheet">
+        <meta name="viewport" content="width=device-width, initial-scale=1, minimum-scale=1, maximum-scale=1">
+        <style>
+            html,body {
+                min-height: 100%;
+                height: 100%;
+                padding: 0;
+                margin: 0;
+            }
+
+            body {
+                background: #f1f1f1;
+                font-family: 'Source Sans Pro', sans-serif;
+            }
+
+            .main {
+                background: #FFF;
+                padding: 25px;
+                display: block;
+                max-width: 600px;
+                margin: 0 auto;
+                box-shadow: 0px 5px 4px rgba(0, 0, 0, 0.07);
+                text-align: center;
+            }
+
+            h1 {
+                margin: 0 0 10px;
+            }
+
+            .logo {
+                display: block;
+                margin: 0 auto 60px;
+            }
+
+            .vertical-align {
+                display: flex;
+                align-items: center;
+                justify-content: center;
+                height: 100%;
+            }
+
+            .vertical-align-inner {
+                flex: 1;
+                padding: 15px;
+            }
+        </style>
+    </head>
+    <body>
+
+        <div class="vertical-align">
+            <div class="vertical-align-inner">
+                <div class="main">
+                    <h1>Sorry, we're down for maintenance.</h1>
+                </div>
+            </div>
+        </div>
+    </body>
+</html>
+";s:5:"mtime";i:1675336065;s:6:"markup";s:1716:"<!DOCTYPE html>
+<html>
+    <head>
+        <title>Please check back later</title>
+        <link href="https://fonts.googleapis.com/css?family=Source+Sans+Pro:400,700" rel="stylesheet">
+        <meta name="viewport" content="width=device-width, initial-scale=1, minimum-scale=1, maximum-scale=1">
+        <style>
+            html,body {
+                min-height: 100%;
+                height: 100%;
+                padding: 0;
+                margin: 0;
+            }
+
+            body {
+                background: #f1f1f1;
+                font-family: 'Source Sans Pro', sans-serif;
+            }
+
+            .main {
+                background: #FFF;
+                padding: 25px;
+                display: block;
+                max-width: 600px;
+                margin: 0 auto;
+                box-shadow: 0px 5px 4px rgba(0, 0, 0, 0.07);
+                text-align: center;
+            }
+
+            h1 {
+                margin: 0 0 10px;
+            }
+
+            .logo {
+                display: block;
+                margin: 0 auto 60px;
+            }
+
+            .vertical-align {
+                display: flex;
+                align-items: center;
+                justify-content: center;
+                height: 100%;
+            }
+
+            .vertical-align-inner {
+                flex: 1;
+                padding: 15px;
+            }
+        </style>
+    </head>
+    <body>
+
+        <div class="vertical-align">
+            <div class="vertical-align-inner">
+                <div class="main">
+                    <h1>Sorry, we're down for maintenance.</h1>
+                </div>
+            </div>
+        </div>
+    </body>
+</html>";s:4:"code";s:292:"/*
+
+To enable this page, go to Admin -> Settings -> Maintenance mode.
+The clients logo can be set in Admin -> Settings -> Customize backend
+
+*/
+
+use Backend\Models\BrandSetting;
+
+function onStart() {
+    $settings = BrandSetting::instance();
+    $this['logo'] = $settings->logo;
+}";s:5:"title";s:11:"Maintenance";s:3:"url";s:12:"/maintenance";s:9:"is_hidden";s:1:"1";s:24:"hide_from_search_engines";s:1:"1";}}

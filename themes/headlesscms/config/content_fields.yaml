@@ -1,0 +1,93 @@
+blocks[onecolumn]:
+    name: Content Blocks
+    description: One Column
+    icon: icon-align-left
+    fields:
+        section:
+            label: Content Block
+            type: section
+
+        background:
+            label: Background Colour
+            type: dropdown
+            span: auto
+            options:
+                primary: Primary
+                secondary: Secondary
+
+        content:
+            label: Content
+            type: richeditor
+
+blocks[twocolumn]:
+    name: Content Blocks
+    description: Two Column
+    icon: icon-align-left
+    fields:
+        section:
+            label: Content Block
+            type: section
+
+        background:
+            label: Background Colour
+            type: dropdown
+            span: auto
+            options:
+                primary: Primary
+                secondary: Secondary
+
+        spacer:
+            type: partial
+            path: $/ds/site/views/_spacer_field.htm
+            cssClass: no-padding
+
+        content_left:
+            label: Left Content
+            span: auto
+            type: richeditor
+
+        content_right:
+            label: Right Content
+            span: auto
+            type: richeditor
+
+
+blocks[threecolumn]:
+    name: Content Blocks
+    description: Three Column
+    icon: icon-align-left
+    fields:
+        section:
+            label: Content Block
+            type: section
+
+        background:
+            label: Background Colour
+            type: dropdown
+            span: auto
+            options:
+                primary: Primary
+                secondary: Secondary
+
+        spacer:
+            type: partial
+            path: $/ds/site/views/_spacer_field.htm
+            cssClass: no-padding
+
+        content_left:
+            label: Left Content
+            span: auto
+            type: richeditor
+            cssClass: col-sm-4
+
+        content_centre:
+            label: Centre Content
+            span: auto
+            type: richeditor
+            cssClass: col-sm-4
+
+        content_right:
+            label: Right Content
+            span: auto
+            type: richeditor
+            cssClass: col-sm-4
