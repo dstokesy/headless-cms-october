@@ -4,7 +4,7 @@ use Request;
 use Response;
 use Log;
 
-class ApiMiddleware
+class Middleware
 {
 
 	/**
