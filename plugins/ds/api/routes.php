@@ -50,13 +50,27 @@ Route::group([
 
 	Route::group(['prefix' => 'blog'], function () {
 		Route::get('slugs', function () {
-			$posts = Post::all();
+			$posts = Post::select(['slug'])
+				->where('published', 1)
+				->where('published_at', '<', Carbon::now())
+				->orderBy('published_at', 'desc')
+				->get();
 
 			$slugs = $posts->map(function($post) {
 				return $post->slug;
 			})->toArray();
 
 			return response()->json($slugs, 200);
+		});
+
+		Route::get('posts', function () {
+			$posts = Post::where('published', 1)
+				->where('published_at', '<', Carbon::now())
+				->orderBy('published_at', 'desc')
+				->get()
+				->toArray();
+
+			return response()->json($posts, 200);
 		});
 
 		Route::get('load/{slug}', function ($slug) {
