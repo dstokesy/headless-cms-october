@@ -41,7 +41,7 @@ return [
     |
     */
 
-    'url' => 'https://www.headlesscms-october.internal/',
+    'url' => 'http://www.headlesscms-october.internal/',
 
     /*
     |--------------------------------------------------------------------------

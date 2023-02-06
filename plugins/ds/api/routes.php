@@ -17,11 +17,15 @@ Route::group([
 		Route::get('slugs', function () {
 			$pages = Page::all();
 
-			$slugs = $pages->map(function($page) {
-				return $page->url != '/'
-					? ltrim($page->url, '/')
-					: $page->url;
-			})->toArray();
+			$slugs = [];
+
+			if ($pages) {
+				foreach ($pages as $page) {
+					$slugs[] = $page->url != '/'
+						? ltrim($page->url, '/')
+						: $page->url;
+				}
+			}
 
 			return response()->json($slugs, 200);
 		});
