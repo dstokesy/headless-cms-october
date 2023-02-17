@@ -1,107 +1,63 @@
 <?php namespace October\Rain\Translation;
 
-use Illuminate\Contracts\Events\Dispatcher;
 use Illuminate\Translation\Translator as TranslatorBase;
 
 /**
- * October translator class.
+ * Translator class
  *
- * @package translation
+ * @package october/translation
  * @author Alexey Bobkov, Samuel Georges
  */
 class Translator extends TranslatorBase
 {
-    use \October\Rain\Support\Traits\KeyParser;
-
+    /**
+     * @var string CORE_LOCALE is the native system language
+     */
     const CORE_LOCALE = 'en';
 
     /**
-     * The event dispatcher instance.
-     *
-     * @var \Illuminate\Contracts\Events\Dispatcher|\October\Rain\Events\Dispatcher
-     */
-    protected $events;
-
-    /**
-     * Get the translation for the given key.
-     *
-     * @param  string  $key
-     * @param  array   $replace
-     * @param  string|null  $locale
-     * @param  bool  $fallback
-     * @return string|array|null
+     * get the translation for the given key.
      */
     public function get($key, array $replace = [], $locale = null, $fallback = true)
     {
-        /**
-         * @event translator.beforeResolve
-         * Fires before the translator resolves the requested language key
-         *
-         * Example usage (overrides the value returned for a specific language key):
-         *
-         *     Event::listen('translator.beforeResolve', function ((string) $key, (array) $replace, (string|null) $locale) {
-         *         if ($key === 'my.custom.key') {
-         *             return 'My overriding value';
-         *         }
-         *     });
-         *
-         */
-        if (isset($this->events) &&
-            ($line = $this->events->fire('translator.beforeResolve', [$key, $replace, $locale], true))) {
-            return $line;
-        }
-
         if ($line = $this->getValidationSpecific($key, $replace, $locale)) {
             return $line;
         }
 
-        list($namespace, $group, $item) = $this->parseKey($key);
-
-        if (is_null($namespace)) {
-            $namespace = '*';
-        }
-
-        // Here we will get the locale that should be used for the language line. If one
-        // was not passed, we will use the default locales which was given to us when
-        // the translator was instantiated. Then, we can load the lines and return.
-        foreach ($this->parseLocale($locale, $fallback) as $locale) {
-            $line = $this->getLine(
-                $namespace,
-                $group,
-                $locale,
-                $item,
-                $replace
-            );
-
-            if (!is_null($line)) {
-                break;
-            }
-        }
-
-        // If the line doesn't exist, we will return back the key which was requested as
-        // that will be quick to spot in the UI if language keys are wrong or missing
-        // from the application's language files. Otherwise we can return the line.
-        if (!isset($line)) {
-            return $this->makeReplacements($key, $replace);
-        }
-
-        return $line;
+        return parent::get($key, $replace, $locale, $fallback);
     }
 
     /**
-     * Check the system namespace by default for "validation" keys.
+     * set a given language key value.
      *
-     * @param  string  $key
-     * @param  array   $replace
-     * @param  string  $locale
-     * @return string
+     * @param array|string $key
+     * @param mixed $value
+     * @param string|null $locale
+     * @return void
+     */
+    public function set($key, $value = null, $locale = null)
+    {
+        if (is_array($key)) {
+            foreach ($key as $innerKey => $innerValue) {
+                $this->set($innerKey, $innerValue, $locale);
+            }
+        }
+        else {
+            $locale = $locale ?: $this->locale;
+
+            $this->loaded['*']['*'][$locale][$key] = $value;
+        }
+    }
+
+    /**
+     * getValidationSpecific checks the system namespace by default for "validation" keys
      */
     protected function getValidationSpecific($key, $replace, $locale)
     {
         if (
-            starts_with($key, 'validation.') &&
-            !starts_with($key, 'validation.custom.') &&
-            !starts_with($key, 'validation.attributes.')
+            str_starts_with($key, 'validation.') &&
+            !str_starts_with($key, 'validation.custom.') &&
+            !str_starts_with($key, 'validation.attributes.')
         ) {
             $nativeKey = 'system::'.$key;
             $line = $this->get($nativeKey, $replace, $locale);
@@ -114,64 +70,40 @@ class Translator extends TranslatorBase
     }
 
     /**
-     * Get a translation according to an integer value.
+     * trans returns the translation for a given key
      *
-     * @param  string  $key
-     * @param  int|array|\Countable  $number
-     * @param  array   $replace
+     * @param  array|string  $id
+     * @param  array   $parameters
      * @param  string  $locale
      * @return string
      */
-    public function choice($key, $number, array $replace = [], $locale = null)
+    public function trans($id, array $parameters = [], $locale = null)
     {
-        $line = $this->get(
-            $key,
-            $replace,
-            $locale = $this->localeForChoice($locale)
-        );
-
-        // If the given "number" is actually an array or countable we will simply count the
-        // number of elements in an instance. This allows developers to pass an array of
-        // items without having to count it on their end first which gives bad syntax.
-        if (is_array($number) || $number instanceof Countable) {
-            $number = count($number);
-        }
-
-        // Format locale for MessageSelector
-        if (strpos($locale, '-') !== false) {
-            $localeParts = explode('-', $locale, 2);
-            $locale = $localeParts[0] . '_' . strtoupper($localeParts[1]);
-        }
-        
-        $replace['count'] = $number;
-
-        return $this->makeReplacements($this->getSelector()->choose($line, $number, $locale), $replace);
+        return $this->get($id, $parameters, $locale);
     }
 
     /**
-     * Get the array of locales to be checked.
+     * transChoice gets a translation according to an integer value
+     *
+     * @param  string  $id
+     * @param  int     $number
+     * @param  array   $parameters
+     * @param  string  $locale
+     * @return string
+     */
+    public function transChoice($id, $number, array $parameters = [], $locale = null)
+    {
+        return $this->choice($id, $number, $parameters, $locale);
+    }
+
+    /**
+     * localeArray gets the array of locales to be checked
      *
      * @param  string|null  $locale
-     * @param  bool         $fallback
      * @return array
      */
-    protected function parseLocale($locale, $fallback)
+    protected function localeArray($locale)
     {
-        $locales = $fallback ? $this->localeArray($locale) : [$locale ?: $this->locale];
-
-        $locales[] = static::CORE_LOCALE;
-
-        return $locales;
-    }
-
-    /**
-     * Set the event dispatcher instance.
-     *
-     * @param  \Illuminate\Contracts\Events\Dispatcher  $events
-     * @return void
-     */
-    public function setEventDispatcher(Dispatcher $events)
-    {
-        $this->events = $events;
+        return array_filter([$locale ?: $this->locale, $this->fallback, static::CORE_LOCALE]);
     }
 }

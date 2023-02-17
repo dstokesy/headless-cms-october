@@ -13,6 +13,17 @@ tabs:
             size: giant
             language: css
 
+        html_paragraph_formats:
+            label: backend::lang.editor.paragraph_formats
+            tab: backend::lang.editor.markup_classes
+            type: datatable
+            span: auto
+            columns:
+                format_tag:
+                    title: backend::lang.editor.markup_classes
+                format_label:
+                    title: backend::lang.editor.label
+
         html_style_paragraph:
             label: backend::lang.editor.paragraph
             tab: backend::lang.editor.markup_classes
@@ -106,28 +117,24 @@ tabs:
             size: small
             span: auto
 
-        html_paragraph_formats:
-            label: backend::lang.editor.paragraph_formats
-            comment: backend::lang.editor.paragraph_formats_comment
-            tab: backend::lang.editor.toolbar_options
-            type: datatable
-            span: right
-            columns:
-                format_tag:
-                    title: backend::lang.editor.markup_tag
-                format_label:
-                    title: backend::lang.editor.label
-
         html_toolbar_buttons:
             label: backend::lang.editor.toolbar_buttons
             comment: backend::lang.editor.toolbar_buttons_comment
-            tab: backend::lang.editor.toolbar_options
+            tab: backend::lang.editor.toolbar_buttons
             type: textarea
             span: left
 
         _html_toolbar_buttons_presets:
             label: backend::lang.editor.toolbar_buttons_preset
-            tab: backend::lang.editor.toolbar_options
+            tab: backend::lang.editor.toolbar_buttons
             type: partial
-            path: ~/modules/backend/models/editorsetting/_toolbar_presets.htm
+            path: ~/modules/backend/models/editorsetting/_toolbar_presets.php
+            span: right
+
+        html_allow_attrs:
+            label: backend::lang.editor.allowed_attrs
+            comment: backend::lang.editor.allowed_attrs_comment
+            tab: backend::lang.editor.markup_tags
+            type: text
             span: left
+

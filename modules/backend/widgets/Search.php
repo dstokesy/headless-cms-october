@@ -1,6 +1,7 @@
 <?php namespace Backend\Widgets;
 
 use Lang;
+use Throwable;
 use Backend\Classes\WidgetBase;
 
 /**
@@ -56,17 +57,17 @@ class Search extends WidgetBase
     protected $defaultAlias = 'search';
 
     /**
-     * @var string Active search term pulled from session data.
+     * @var string activeTerm pulled from session data.
      */
     protected $activeTerm;
 
     /**
-     * @var array List of CSS classes to apply to the list container element.
+     * @var array cssClasses to apply to the list container element.
      */
     public $cssClasses = [];
 
     /**
-     * Initialize the widget, called by the constructor and free from its parameters.
+     * init the widget, called by the constructor and free from its parameters.
      */
     public function init()
     {
@@ -79,18 +80,21 @@ class Search extends WidgetBase
             'searchOnEnter',
         ]);
 
-        /*
-         * Add CSS class styles
-         */
-        $this->cssClasses[] = 'icon search';
-
         if ($this->growable) {
             $this->cssClasses[] = 'growable';
         }
     }
 
     /**
-     * Renders the widget.
+     * @inheritDoc
+     */
+    protected function loadAssets()
+    {
+        $this->addJs('js/october.search.js');
+    }
+
+    /**
+     * render the widget
      */
     public function render()
     {
@@ -104,7 +108,7 @@ class Search extends WidgetBase
     }
 
     /**
-     * Prepares the view data
+     * prepareVars for display
      */
     public function prepareVars()
     {
@@ -115,23 +119,19 @@ class Search extends WidgetBase
     }
 
     /**
-     * Search field has been submitted.
+     * onSubmit search field
      */
     public function onSubmit()
     {
-        /*
-         * Save or reset search term in session
-         */
+        // Save or reset search term in session
         $this->setActiveTerm(post($this->getName()));
 
-        /*
-         * Trigger class event, merge results as viewable array
-         */
+        // Trigger class event, merge results as viewable array
         $params = func_get_args();
         try {
             $result = $this->fireEvent('search.submit', [$params]);
-        } catch (\Throwable $e) {
-            // Remove the search term from the session if the search has failed.
+        }
+        catch (Throwable $e) {
             $this->setActiveTerm('');
             throw $e;
         }
@@ -142,7 +142,7 @@ class Search extends WidgetBase
     }
 
     /**
-     * Returns an active search term for this widget instance.
+     * getActiveTerm returns an active search term for this widget instance.
      */
     public function getActiveTerm()
     {
@@ -150,21 +150,22 @@ class Search extends WidgetBase
     }
 
     /**
-     * Sets an active search term for this widget instance.
+     * setActiveTerm for this widget instance.
      */
     public function setActiveTerm($term)
     {
-        if (strlen($term)) {
-            $this->putSession('term', $term);
-        } else {
+        if (!is_string($term) || !strlen($term)) {
             $this->resetSession();
+        }
+        else {
+            $this->putSession('term', $term);
         }
 
         $this->activeTerm = $term;
     }
 
     /**
-     * Returns a value suitable for the field name property.
+     * getName returns a value suitable for the field name property.
      * @return string
      */
     public function getName()

@@ -1,85 +1,51 @@
 <?php namespace October\Rain\Scaffold\Console;
 
-use October\Rain\Scaffold\GeneratorCommand;
-use Symfony\Component\Console\Input\InputOption;
-use Symfony\Component\Console\Input\InputArgument;
+use October\Rain\Scaffold\GeneratorCommandBase;
 
-class CreateComponent extends GeneratorCommand
+/**
+ * CreateComponent
+ */
+class CreateComponent extends GeneratorCommandBase
 {
     /**
-     * The console command name.
-     *
-     * @var string
+     * @var string signature for the command
+     */
+    protected $signature = 'create:component {namespace : App or Plugin Namespace (eg: Acme.Blog)}
+        {name : The name of the component. Eg: Posts}
+        {--o|overwrite : Overwrite existing files with generated ones}';
+
+    /**
+     * @var string name of console command
      */
     protected $name = 'create:component';
 
     /**
-     * The console command description.
-     *
-     * @var string
+     * @var string description of the console command
      */
     protected $description = 'Creates a new plugin component.';
 
     /**
-     * The type of class being generated.
-     *
-     * @var string
+     * @var string type of class being generated
      */
-    protected $type = 'Component';
+    protected $typeLabel = 'Component';
 
     /**
-     * A mapping of stub to generated file.
-     *
-     * @var array
+     * makeStubs makes all stubs
      */
-    protected $stubs = [
-        'component/component.stub'  => 'components/{{studly_name}}.php',
-        'component/default.stub' => 'components/{{lower_name}}/default.htm',
-    ];
-
-    /**
-     * Prepare variables for stubs.
-     *
-     * return @array
-     */
-    protected function prepareVars()
+    public function makeStubs()
     {
-        $pluginCode = $this->argument('plugin');
-
-        $parts = explode('.', $pluginCode);
-        $plugin = array_pop($parts);
-        $author = array_pop($parts);
-        $component = $this->argument('component');
-
-        return [
-            'name' => $component,
-            'author' => $author,
-            'plugin' => $plugin
-        ];
+        $this->makeStub('component/component.stub', 'components/{{studly_name}}.php');
+        $this->makeStub('component/default.stub', 'components/{{lower_name}}/default.htm');
     }
 
     /**
-     * Get the console command arguments.
-     *
-     * @return array
+     * prepareVars prepares variables for stubs
      */
-    protected function getArguments()
+    protected function prepareVars(): array
     {
         return [
-            ['plugin', InputArgument::REQUIRED, 'The name of the plugin to create. Eg: RainLab.Blog'],
-            ['component', InputArgument::REQUIRED, 'The name of the component. Eg: Posts'],
-        ];
-    }
-
-    /**
-     * Get the console command options.
-     *
-     * @return array
-     */
-    protected function getOptions()
-    {
-        return [
-            ['force', null, InputOption::VALUE_NONE, 'Overwrite existing files with generated ones.']
+            'name' => $this->argument('name'),
+            'namespace' => $this->argument('namespace'),
         ];
     }
 }

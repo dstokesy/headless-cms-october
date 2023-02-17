@@ -3,6 +3,8 @@
 use October\Rain\Support\Facade;
 
 /**
+ * DbDongle
+ *
  * @method static mixed raw(string $sql)
  * @method static string parse(string $sql)
  * @method static string parseGroupConcat(string $sql)
@@ -20,8 +22,7 @@ use October\Rain\Support\Facade;
 class DbDongle extends Facade
 {
     /**
-     * Get the registered name of the component.
-     *
+     * getFacadeAccessor returns the registered name of the component
      * @return string
      */
     protected static function getFacadeAccessor()

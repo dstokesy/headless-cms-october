@@ -3,6 +3,12 @@
 use Hash;
 use Exception;
 
+/**
+ * Hashable
+ *
+ * @package october\database
+ * @author Alexey Bobkov, Samuel Georges
+ */
 trait Hashable
 {
     /**
@@ -17,32 +23,28 @@ trait Hashable
     protected $originalHashableValues = [];
 
     /**
-     * Boot the hashable trait for a model.
-     * @return void
+     * initializeHashable trait for a model.
      */
-    public static function bootHashable()
+    public function initializeHashable()
     {
-        if (!property_exists(get_called_class(), 'hashable')) {
+        if (!is_array($this->hashable)) {
             throw new Exception(sprintf(
-                'You must define a $hashable property in %s to use the Hashable trait.',
-                get_called_class()
+                'The $hashable property in %s must be an array to use the Hashable trait.',
+                get_class($this)
             ));
         }
-        /*
-         * Hash required fields when necessary
-         */
-        static::extend(function ($model) {
-            $model->bindEvent('model.beforeSetAttribute', function ($key, $value) use ($model) {
-                $hashable = $model->getHashableAttributes();
-                if (in_array($key, $hashable) && !empty($value)) {
-                    return $model->makeHashValue($key, $value);
-                }
-            });
+
+        // Hash required fields when necessary
+        $this->bindEvent('model.beforeSetAttribute', function ($key, $value) {
+            $hashable = $this->getHashableAttributes();
+            if (in_array($key, $hashable) && !empty($value)) {
+                return $this->makeHashValue($key, $value);
+            }
         });
     }
 
     /**
-     * Adds an attribute to the hashable attributes list
+     * addHashable adds an attribute to the hashable attributes list
      * @param  array|string|null  $attributes
      * @return $this
      */
@@ -56,7 +58,7 @@ trait Hashable
     }
 
     /**
-     * Hashes an attribute value and saves it in the original locker.
+     * makeHashValue hashes an attribute value and saves it in the original locker.
      * @param  string $key   Attribute
      * @param  string $value Value to hash
      * @return string        Hashed value
@@ -68,7 +70,7 @@ trait Hashable
     }
 
     /**
-     * Checks if the supplied plain value matches the stored hash value.
+     * checkHashValue checks if the supplied plain value matches the stored hash value.
      * @param  string $key   Attribute to check
      * @param  string $value Value to check
      * @return bool
@@ -79,7 +81,7 @@ trait Hashable
     }
 
     /**
-     * Returns a collection of fields that will be hashed.
+     * getHashableAttributes returns a collection of fields that will be hashed.
      * @return array
      */
     public function getHashableAttributes()
@@ -88,7 +90,7 @@ trait Hashable
     }
 
     /**
-     * Returns the original values of any hashed attributes.
+     * getOriginalHashValues returns the original values of any hashed attributes.
      * @return array
      */
     public function getOriginalHashValues()
@@ -97,22 +99,11 @@ trait Hashable
     }
 
     /**
-     * Returns the original values of any hashed attributes.
+     * getOriginalHashValue returns the original values of any hashed attributes.
      * @return mixed
      */
     public function getOriginalHashValue($attribute)
     {
         return $this->originalHashableValues[$attribute] ?? null;
-    }
-
-    /**
-     * @deprecated use self::addHashable()
-     * Remove this method if year >= 2018
-     */
-    public function addHashableAttribute($attribute)
-    {
-        traceLog('The addHashableAttribute() method is deprecated, use addHashable() instead.');
-
-        return $this->addHashable($attribute);
     }
 }

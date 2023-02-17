@@ -1,18 +1,15 @@
 <?php namespace October\Rain\Parse;
 
 use Illuminate\Support\ServiceProvider;
+use Illuminate\Contracts\Support\DeferrableProvider;
 
-class ParseServiceProvider extends ServiceProvider
+/**
+ * ParseServiceProvider
+ */
+class ParseServiceProvider extends ServiceProvider implements DeferrableProvider
 {
     /**
-     * Indicates if loading of the provider is deferred.
-     * @var bool
-     */
-    protected $defer = true;
-
-    /**
-     * Register the service provider.
-     * @return void
+     * register the service provider.
      */
     public function register()
     {
@@ -34,7 +31,7 @@ class ParseServiceProvider extends ServiceProvider
     }
 
     /**
-     * Get the services provided by the provider.
+     * provides the returned services.
      * @return array
      */
     public function provides()

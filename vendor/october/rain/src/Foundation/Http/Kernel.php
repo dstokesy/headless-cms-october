@@ -2,6 +2,12 @@
 
 use Illuminate\Foundation\Http\Kernel as HttpKernel;
 
+/**
+ * Kernel
+ *
+ * @package october\foundation
+ * @author Alexey Bobkov, Samuel Georges
+ */
 class Kernel extends HttpKernel
 {
     /**
@@ -11,23 +17,21 @@ class Kernel extends HttpKernel
      */
     protected $bootstrappers = [
         \October\Rain\Foundation\Bootstrap\RegisterClassLoader::class,
-        \October\Rain\Foundation\Bootstrap\LoadEnvironmentVariables::class,
+        \October\Rain\Foundation\Bootstrap\LoadEnvironmentFromHost::class,
+        \Illuminate\Foundation\Bootstrap\LoadEnvironmentVariables::class,
         \October\Rain\Foundation\Bootstrap\LoadConfiguration::class,
-        \October\Rain\Foundation\Bootstrap\LoadTranslation::class,
         \Illuminate\Foundation\Bootstrap\HandleExceptions::class,
         \Illuminate\Foundation\Bootstrap\RegisterFacades::class,
         \October\Rain\Foundation\Bootstrap\RegisterOctober::class,
         \Illuminate\Foundation\Bootstrap\RegisterProviders::class,
         \Illuminate\Foundation\Bootstrap\BootProviders::class,
     ];
-
     /**
      * The application's global HTTP middleware stack.
      *
      * @var array
      */
     protected $middleware = [
-        \October\Rain\Foundation\Http\Middleware\CheckForTrustedHost::class,
         \October\Rain\Foundation\Http\Middleware\CheckForMaintenanceMode::class,
     ];
 
@@ -52,7 +56,7 @@ class Kernel extends HttpKernel
      */
     protected $middlewareGroups = [
         'web' => [
-            \October\Rain\Cookie\Middleware\EncryptCookies::class,
+            \October\Rain\Foundation\Http\Middleware\EncryptCookies::class,
             \Illuminate\Cookie\Middleware\AddQueuedCookiesToResponse::class,
             \Illuminate\Session\Middleware\StartSession::class,
             \Illuminate\View\Middleware\ShareErrorsFromSession::class,

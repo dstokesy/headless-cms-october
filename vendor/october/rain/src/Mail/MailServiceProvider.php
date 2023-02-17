@@ -2,45 +2,34 @@
 
 use Illuminate\Mail\MailServiceProvider as MailServiceProviderBase;
 
+/**
+ * MailServiceProvider
+ *
+ * @package october\mail
+ * @author Alexey Bobkov, Samuel Georges
+ */
 class MailServiceProvider extends MailServiceProviderBase
 {
     /**
-     * Register the Illuminate mailer instance. Carbon copy of Illuminate method.
-     * @return void
+     * registerIlluminateMailer instance, as a copy of parent with extensibility.
      */
     protected function registerIlluminateMailer()
     {
-        $this->app->singleton('mailer', function ($app) {
-            /*
-             * Extensibility
-             */
-            $this->app['events']->fire('mailer.beforeRegister', [$this]);
+        $this->app->singleton('mail.manager', function ($app) {
+            // Extensibility
+            $this->app['events']->dispatch('mailer.beforeRegister', [$this]);
 
-            $config = $app->make('config')->get('mail');
+            // Inheritence
+            $manager = new MailManager($app);
 
-            /*
-             * October mailer
-             */
-            $mailer = new Mailer(
-                $app['view'],
-                $app['swift.mailer'],
-                $app['events']
-            );
+            // Extensibility
+            $this->app['events']->dispatch('mailer.register', [$this, $manager]);
 
-            if ($app->bound('queue')) {
-                $mailer->setQueue($app['queue']);
-            }
+            return $manager;
+        });
 
-            foreach (['from', 'reply_to', 'to'] as $type) {
-                $this->setGlobalAddress($mailer, $config, $type);
-            }
-
-            /*
-             * Extensibility
-             */
-            $this->app['events']->fire('mailer.register', [$this, $mailer]);
-
-            return $mailer;
+        $this->app->bind('mailer', function ($app) {
+            return $app->make('mail.manager')->mailer();
         });
     }
 }

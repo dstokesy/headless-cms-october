@@ -10,31 +10,35 @@ class Group extends Model
     use \October\Rain\Database\Traits\Validation;
 
     /**
-     * @var string The table associated with the model.
+     * @var string table associated with the model
      */
     protected $table = 'groups';
 
     /**
-     * @var array Validation rules
+     * @var array rules for validation
      */
     public $rules = [
         'name' => 'required|between:4,16|unique:groups',
     ];
 
     /**
-     * @var array Relations
+     * @var array belongsToMany relationship
      */
     public $belongsToMany = [
         'users' => [User::class, 'table' => 'users_groups']
     ];
 
     /**
-     * @var array The attributes that aren't mass assignable.
+     * @var array fillable fields
      */
-    protected $guarded = [];
+    protected $fillable = [
+        'name',
+        'code',
+        'description',
+    ];
 
     /**
-     * Delete the group.
+     * delete the group
      * @return bool
      */
     public function delete()

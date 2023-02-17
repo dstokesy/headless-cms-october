@@ -7,7 +7,7 @@ use October\Rain\Mail\MailParser;
 use File as FileHelper;
 
 /**
- * Mail template
+ * MailTemplate
  *
  * @package october\system
  * @author Alexey Bobkov, Samuel Georges
@@ -17,28 +17,28 @@ class MailTemplate extends Model
     use \October\Rain\Database\Traits\Validation;
 
     /**
-     * @var string The database table used by the model.
+     * @var string table associated with the model
      */
     protected $table = 'system_mail_templates';
 
     /**
-     * @var array Guarded fields
+     * @var array guarded fields
      */
     protected $guarded = [];
 
     /**
-     * @var array Fillable fields
+     * @var array fillable fields
      */
     protected $fillable = [];
 
     /**
-     * @var array Validation rules
+     * @var array rules for validation
      */
     public $rules = [
-        'code'                  => 'required|unique:system_mail_templates',
-        'subject'               => 'required',
-        'description'           => 'required',
-        'content_html'          => 'required',
+        'code' => 'required|unique:system_mail_templates',
+        'subject' => 'required',
+        'description' => 'required',
+        'content_html' => 'required',
     ];
 
     public $belongsTo = [
@@ -46,7 +46,7 @@ class MailTemplate extends Model
     ];
 
     /**
-     * Returns an array of template codes and descriptions.
+     * listAllTemplates returns an array of template codes and descriptions.
      * @return array
      */
     public static function listAllTemplates()
@@ -59,7 +59,7 @@ class MailTemplate extends Model
     }
 
     /**
-     * Returns a list of all mail templates.
+     * allTemplates returns a list of all mail templates.
      * @return array Returns an array of the MailTemplate objects.
      */
     public static function allTemplates()
@@ -87,9 +87,7 @@ class MailTemplate extends Model
         $dbTemplates = self::lists('is_custom', 'code');
         $newTemplates = array_diff_key($templates, $dbTemplates);
 
-        /*
-         * Clean up non-customized templates
-         */
+        // Clean up non-customized templates
         foreach ($dbTemplates as $code => $isCustom) {
             if ($isCustom) {
                 continue;
@@ -100,9 +98,7 @@ class MailTemplate extends Model
             }
         }
 
-        /*
-         * Create new templates
-         */
+        // Create new templates
         foreach ($newTemplates as $code) {
             $sections = self::getTemplateSections($code);
             $layoutCode = array_get($sections, 'settings.layout', 'default');
@@ -117,6 +113,9 @@ class MailTemplate extends Model
         }
     }
 
+    /**
+     * afterFetch
+     */
     public function afterFetch()
     {
         if (!$this->is_custom) {
@@ -124,31 +123,46 @@ class MailTemplate extends Model
         }
     }
 
+    /**
+     * fillFromContent
+     */
     public function fillFromContent($content)
     {
         $this->fillFromSections(MailParser::parse($content));
     }
 
+    /**
+     * fillFromView
+     */
     public function fillFromView($path)
     {
         $this->fillFromSections(self::getTemplateSections($path));
     }
 
+    /**
+     * fillFromSections
+     */
     protected function fillFromSections($sections)
     {
-        $this->content_html = $sections['html'];
-        $this->content_text = $sections['text'];
+        $this->content_html = $sections['html'] ?? '';
+        $this->content_text = $sections['text'] ?? '';
         $this->subject = array_get($sections, 'settings.subject', 'No subject');
 
         $layoutCode = array_get($sections, 'settings.layout', 'default');
         $this->layout = MailLayout::findOrMakeLayout($layoutCode);
     }
 
+    /**
+     * getTemplateSections
+     */
     protected static function getTemplateSections($code)
     {
         return MailParser::parse(FileHelper::get(View::make($code)->getPath()));
     }
 
+    /**
+     * findOrMakeTemplate
+     */
     public static function findOrMakeTemplate($code)
     {
         $template = self::whereCode($code)->first();
@@ -160,15 +174,5 @@ class MailTemplate extends Model
         }
 
         return $template;
-    }
-
-    /**
-     * @deprecated see System\Classes\MailManager::registerCallback
-     * Remove if year >= 2019
-     */
-    public static function registerCallback(callable $callback)
-    {
-        traceLog('MailTemplate::registerCallback is deprecated, use ' . MailManager::class . '::registerCallback instead');
-        MailManager::instance()->registerCallback($callback);
     }
 }

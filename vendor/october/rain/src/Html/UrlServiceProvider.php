@@ -1,40 +1,42 @@
 <?php namespace October\Rain\Html;
 
+use Str;
 use Illuminate\Support\ServiceProvider;
 
+/**
+ * UrlServiceProvider
+ *
+ * @package october\html
+ * @author Alexey Bobkov, Samuel Georges
+ */
 class UrlServiceProvider extends ServiceProvider
 {
-
     /**
-     * @var bool Indicates if loading of the provider is deferred.
-     */
-    protected $defer = false;
-
-    /**
-     * Register the service provider.
-     * @return void
+     * register the service provider.
      */
     public function register()
     {
-        $this->setUrlGeneratorPolicy();
+        $this->registerUrlGeneratorPolicy();
+        $this->registerRelativeHelper();
+        $this->registerPjaxCached();
     }
 
     /**
-     * Controls how URL links are generated throughout the application.
+     * registerUrlGeneratorPolicy controls how URL links are generated throughout the application.
      *
      * detect   - detect hostname and use the current schema
      * secure   - detect hostname and force HTTPS schema
      * insecure - detect hostname and force HTTP schema
      * force    - force hostname and schema using app.url config value
      */
-    public function setUrlGeneratorPolicy()
+    public function registerUrlGeneratorPolicy()
     {
-        $policy = $this->app['config']->get('cms.linkPolicy', 'detect');
+        $policy = $this->app['config']->get('system.link_policy', 'detect');
 
         switch (strtolower($policy)) {
             case 'force':
                 $appUrl = $this->app['config']->get('app.url');
-                $schema = \Str::startsWith($appUrl, 'http://') ? 'http' : 'https';
+                $schema = Str::startsWith($appUrl, 'http://') ? 'http' : 'https';
                 $this->app['url']->forceRootUrl($appUrl);
                 $this->app['url']->forceScheme($schema);
                 break;
@@ -47,5 +49,29 @@ class UrlServiceProvider extends ServiceProvider
                 $this->app['url']->forceScheme('https');
                 break;
         }
+    }
+
+    /**
+     * registerRelativeHelper
+     */
+    public function registerRelativeHelper()
+    {
+        $provider = $this->app['url'];
+
+        $provider->macro('toRelative', function($url) use ($provider) {
+            return parse_url($provider->to($url), PHP_URL_PATH);
+        });
+    }
+
+    /**
+     * registerPjaxCached
+     */
+    public function registerPjaxCached()
+    {
+        $provider = $this->app['request'];
+
+        $provider->macro('pjaxCached', function() use ($provider) {
+            return $provider->headers->get('X-PJAX-CACHED') == true;
+        });
     }
 }

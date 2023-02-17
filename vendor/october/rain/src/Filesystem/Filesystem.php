@@ -1,11 +1,11 @@
 <?php namespace October\Rain\Filesystem;
 
-use Illuminate\Filesystem\Filesystem as FilesystemBase;
 use ReflectionClass;
 use FilesystemIterator;
+use Illuminate\Filesystem\Filesystem as FilesystemBase;
 
 /**
- * File helper
+ * Filesystem helper
  *
  * @package october\filesystem
  * @author Alexey Bobkov, Samuel Georges
@@ -13,12 +13,12 @@ use FilesystemIterator;
 class Filesystem extends FilesystemBase
 {
     /**
-     * @var string Default file permission mask as a string ("777").
+     * @var string Default file permission mask as a string ("755").
      */
     public $filePermissions = null;
 
     /**
-     * @var string Default folder permission mask as a string ("777").
+     * @var string Default folder permission mask as a string ("755").
      */
     public $folderPermissions = null;
 
@@ -28,7 +28,22 @@ class Filesystem extends FilesystemBase
     public $pathSymbols = [];
 
     /**
-     * Determine if the given path contains no files.
+     * @var array|null A cache of symlinked root directories.
+     */
+    protected $symlinkRootCache;
+
+    /**
+     * anyname extract the path and filename without extension
+     * @param  string  $path
+     * @return string
+     */
+    public function anyname($path)
+    {
+        return strpos(basename($path), '.') !== false ? substr($path, 0, strrpos($path, '.')) : $path;
+    }
+
+    /**
+     * isDirectoryEmpty determines if the given path contains no files
      * @param  string  $directory
      * @return bool
      */
@@ -40,7 +55,7 @@ class Filesystem extends FilesystemBase
 
         $handle = opendir($directory);
         while (false !== ($entry = readdir($handle))) {
-            if ($entry != '.' && $entry != '..') {
+            if ($entry !== '.' && $entry !== '..') {
                 closedir($handle);
                 return false;
             }
@@ -51,7 +66,7 @@ class Filesystem extends FilesystemBase
     }
 
     /**
-     * Converts a file size in bytes to human readable format.
+     * sizeToString converts a file size in bytes to human readable format
      * @param  int $bytes
      * @return string
      */
@@ -73,7 +88,7 @@ class Filesystem extends FilesystemBase
             return $bytes . ' bytes';
         }
 
-        if ($bytes == 1) {
+        if ($bytes === 1) {
             return $bytes . ' byte';
         }
 
@@ -81,38 +96,58 @@ class Filesystem extends FilesystemBase
     }
 
     /**
-     * Returns a public file path from an absolute one
+     * localToPublic returns a public file path from an absolute one
      * eg: /home/mysite/public_html/welcome -> /welcome
      * @param  string $path Absolute path
      * @return string
      */
     public function localToPublic($path)
     {
-        $result = null;
-        $publicPath = public_path();
-
-        if (strpos($path, $publicPath) === 0) {
-            $result = str_replace("\\", "/", substr($path, strlen($publicPath)));
+        // Check real paths
+        $basePath = base_path();
+        if (strpos($path, $basePath) === 0) {
+            return str_replace("\\", "/", substr($path, strlen($basePath)));
         }
-        // Attempt to support first level symlinks
-        elseif ($directories = self::glob($publicPath . '/*', GLOB_NOSORT | GLOB_ONLYDIR)) {
-            foreach ($directories as $dir) {
-                if (is_link($dir) && strpos($path, readlink($dir)) === 0) {
-                    // Get the path of the requested path relative to the symlink in the public path
-                    $relativeLinkedPath = substr($path, strlen(readlink($dir)));
-                    return str_replace("\\", "/", substr($dir, strlen($publicPath)) . $relativeLinkedPath);
-                }
+
+        // Check first level symlinks
+        foreach ($this->getRootSymlinks() as $dir) {
+            $resolvedDir = readlink($dir);
+            if (strpos($path, $resolvedDir) === 0) {
+                $relativePath = substr($path, strlen($resolvedDir));
+                return str_replace("\\", "/", substr($dir, strlen($basePath)) . $relativePath);
             }
         }
 
-        return $result;
+        return null;
     }
 
     /**
-     * Returns true if the specified path is within the path of the application
-     * @param  string  $path The path to
-     * @param  boolean $realpath Default true, uses realpath() to resolve the provided path before checking location. Set to false if you need to check if a potentially non-existent path would be within the application path
-     * @return boolean
+     * getRootSymlinks returns any unresolved symlinks in the public directory
+     */
+    protected function getRootSymlinks(): array
+    {
+        if ($this->symlinkRootCache === null) {
+            $symDirs = [];
+
+            foreach ($this->directories(base_path()) as $dir) {
+                if (is_link($dir)) {
+                    $symDirs[] = $dir;
+                }
+            }
+
+            $this->symlinkRootCache = $symDirs;
+        }
+
+        return $this->symlinkRootCache;
+    }
+
+    /**
+     * isLocalPath returns true if the specified path is within the path of the application.
+     * realpath resolves the provided path before checking location, set to false if you need
+     * to check if a potentially non-existent path would be within the application path.
+     * @param  string  $path
+     * @param  bool $realpath
+     * @return bool
      */
     public function isLocalPath($path, $realpath = true)
     {
@@ -126,7 +161,7 @@ class Filesystem extends FilesystemBase
     }
 
     /**
-     * Finds the path to a class
+     * fromClass finds the path to a class
      * @param  mixed  $className Class name or object
      * @return string The file path
      */
@@ -137,26 +172,26 @@ class Filesystem extends FilesystemBase
     }
 
     /**
-     * Determine if a file exists with case insensitivity
-     * supported for the file only.
+     * existsInsensitive determines if a file exists with case insensitivity
+     * supported for the file only. Returne either the sensitive path or false.
      * @param  string $path
-     * @return mixed  Sensitive path or false
+     * @return string|bool
      */
     public function existsInsensitive($path)
     {
-        if (self::exists($path)) {
+        if ($this->exists($path)) {
             return $path;
         }
 
         $directoryName = dirname($path);
         $pathLower = strtolower($path);
 
-        if (!$files = self::glob($directoryName . '/*', GLOB_NOSORT)) {
+        if (!$files = $this->glob($directoryName . '/*', GLOB_NOSORT)) {
             return false;
         }
 
         foreach ($files as $file) {
-            if (strtolower($file) == $pathLower) {
+            if (strtolower($file) === $pathLower) {
                 return $file;
             }
         }
@@ -165,9 +200,10 @@ class Filesystem extends FilesystemBase
     }
 
     /**
-     * Normalizes the directory separator, often used by Win systems.
-     * @param  string $path Path name
-     * @return string       Normalized path
+     * normalizePath returns a normalized version of the supplied path for use in
+     * combined Windows and Unix systems.
+     * @param  string $path
+     * @return string
      */
     public function normalizePath($path)
     {
@@ -175,7 +211,7 @@ class Filesystem extends FilesystemBase
     }
 
     /**
-     * Converts a path using path symbol. Returns the original path if
+     * symbolizePath converts a path using path symbol. Returns the original path if
      * no symbol is used and no default is specified.
      * @param  string $path
      * @param  mixed $default
@@ -192,9 +228,9 @@ class Filesystem extends FilesystemBase
     }
 
     /**
-     * Returns true if the path uses a symbol.
+     * isPathSymbol returns the symbol if the path uses a symbol, otherwise false
      * @param  string  $path
-     * @return boolean
+     * @return bool|string
      */
     public function isPathSymbol($path)
     {
@@ -207,7 +243,7 @@ class Filesystem extends FilesystemBase
     }
 
     /**
-     * Write the contents of a file.
+     * put writes the contents of a file
      * @param  string  $path
      * @param  string  $contents
      * @return int
@@ -220,7 +256,7 @@ class Filesystem extends FilesystemBase
     }
 
     /**
-     * Copy a file to a new location.
+     * copy a file to a new location.
      * @param  string  $path
      * @param  string  $target
      * @return bool
@@ -233,14 +269,26 @@ class Filesystem extends FilesystemBase
     }
 
     /**
-     * Create a directory.
+     * getSafe reads the first portion of file contents
+     */
+    public function getSafe(string $path, float $limitKbs = 1)
+    {
+        $limit = $limitKbs * 4096;
+
+        $parser = fopen($path, 'r');
+
+        return fread($parser, $limit);
+    }
+
+    /**
+     * makeDirectory creates a directory
      * @param  string  $path
      * @param  int     $mode
      * @param  bool    $recursive
      * @param  bool    $force
      * @return bool
      */
-    public function makeDirectory($path, $mode = 0777, $recursive = false, $force = false)
+    public function makeDirectory($path, $mode = 0755, $recursive = false, $force = false)
     {
         if ($mask = $this->getFolderPermissions()) {
             $mode = $mask;
@@ -253,7 +301,7 @@ class Filesystem extends FilesystemBase
             $chmodPath = $path;
             while (true) {
                 $basePath = dirname($chmodPath);
-                if ($chmodPath == $basePath) {
+                if ($chmodPath === $basePath) {
                     break;
                 }
                 if ($this->isDirectory($basePath)) {
@@ -286,7 +334,7 @@ class Filesystem extends FilesystemBase
     }
 
     /**
-     * Modify file/folder permissions
+     * chmod modifies file/folder permissions
      * @param  string $path
      * @param  octal $mask
      * @return void
@@ -307,7 +355,7 @@ class Filesystem extends FilesystemBase
     }
 
     /**
-     * Modify file/folder permissions recursively
+     * chmodRecursive modifies file/folder permissions recursively
      * @param  string $path
      * @param  octal $fileMask
      * @param  octal $directoryMask
@@ -345,8 +393,8 @@ class Filesystem extends FilesystemBase
     }
 
     /**
-     * Returns the default file permission mask to use.
-     * @return string Permission mask as octal (0777) or null
+     * getFilePermissions returns the default file permission mask to use
+     * @return string Permission mask as octal (0755) or null
      */
     public function getFilePermissions()
     {
@@ -356,8 +404,8 @@ class Filesystem extends FilesystemBase
     }
 
     /**
-     * Returns the default folder permission mask to use.
-     * @return string Permission mask as octal (0777) or null
+     * getFolderPermissions returns the default folder permission mask to use
+     * @return string Permission mask as octal (0755) or null
      */
     public function getFolderPermissions()
     {
@@ -367,7 +415,7 @@ class Filesystem extends FilesystemBase
     }
 
     /**
-     * Match filename against a pattern.
+     * fileNameMatch matches filename against a pattern
      * @param  string|array $fileName
      * @param  string $pattern
      * @return bool
@@ -381,5 +429,54 @@ class Filesystem extends FilesystemBase
         $regex = strtr(preg_quote($pattern, '#'), ['\*' => '.*', '\?' => '.']);
 
         return (bool) preg_match('#^' . $regex . '$#i', $fileName);
+    }
+
+    /**
+     * lastModifiedRecursive checks an entire directory and
+     * returns the mtime of the freshest file.
+     */
+    public function lastModifiedRecursive($path)
+    {
+        $mtime = 0;
+
+        foreach ($this->allFiles($path) as $file) {
+            $mtime = max($mtime, $this->lastModified($file->getPathname()));
+        }
+
+        return $mtime;
+    }
+
+    /**
+     * searchDirectory locates a file and return its relative path Eg: Searching
+     * directory /home/mysite for file index.php could locate this file
+     * /home/mysite/public_html/welcome/index.php and would return
+     * public_html/welcome
+     * @param  string $file index.php
+     * @param  string $directory /home/mysite
+     * @return string public_html/welcome
+     */
+    public function searchDirectory($file, $directory, $rootDir = '')
+    {
+        $files = $this->files($directory);
+        $directories = $this->directories($directory);
+
+        foreach ($files as $directoryFile) {
+            if ($directoryFile->getFileName() === $file) {
+                return $rootDir;
+            }
+        }
+
+        foreach ($directories as $subdirectory) {
+            $relativePath = strlen($rootDir)
+                ? $rootDir.'/'.basename($subdirectory)
+                : basename($subdirectory);
+
+            $result = $this->searchDirectory($file, $subdirectory, $relativePath);
+            if ($result !== null) {
+                return $result;
+            }
+        }
+
+        return null;
     }
 }

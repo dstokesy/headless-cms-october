@@ -3,6 +3,8 @@
 use October\Rain\Support\Facade;
 
 /**
+ * Str
+ *
  * @method static string after(string $subject, string $search)
  * @method static string ascii(string $value, string $language = 'en')
  * @method static string before(string $subject, string $search)
@@ -44,8 +46,7 @@ use October\Rain\Support\Facade;
 class Str extends Facade
 {
     /**
-     * Get the registered name of the component.
-     *
+     * getFacadeAccessor returns the registered name of the component
      * @return string
      */
     protected static function getFacadeAccessor()

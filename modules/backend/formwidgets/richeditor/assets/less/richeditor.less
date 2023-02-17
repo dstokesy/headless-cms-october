@@ -4,33 +4,33 @@
 @richeditor-zindex: 600;
 @richeditor-gutter: 20px;
 
-@color-richeditor-toolbar:                   #dddddd;
-@color-richeditor-toolbar-btn-color:         #404040;
-@color-richeditor-toolbar-btn-bg-hover:      #999999;
-@color-richeditor-toolbar-btn-bg-active:     #404040;
-@color-richeditor-toolbar-btn-color-hover:   #ffffff;
+@color-richeditor-toolbar: #dddddd;
+@color-richeditor-toolbar-btn-color: #404040;
+@color-richeditor-toolbar-btn-bg-hover: #999999;
+@color-richeditor-toolbar-btn-bg-active: #404040;
+@color-richeditor-toolbar-btn-color-hover: #ffffff;
 
-@import "../vendor/froala_drm/less/froala.less";
+@import "../vendor/froala/less/froala.less";
 
 // Buttons
-@import "../vendor/froala_drm/less/plugins/fullscreen.less";
-@import "../vendor/froala_drm/less/plugins/code_view.less";
-@import "../vendor/froala_drm/less/plugins/file.less";
-@import "../vendor/froala_drm/less/plugins/image.less";
-@import "../vendor/froala_drm/less/plugins/table.less";
-@import "../vendor/froala_drm/less/plugins/video.less";
-@import "../vendor/froala_drm/less/plugins/colors.less";
-@import "../vendor/froala_drm/less/plugins/emoticons.less";
+@import "../vendor/froala/less/plugins/fullscreen.less";
+@import "../vendor/froala/less/plugins/code_view.less";
+@import "../vendor/froala/less/plugins/file.less";
+@import "../vendor/froala/less/plugins/image.less";
+@import "../vendor/froala/less/plugins/table.less";
+@import "../vendor/froala/less/plugins/video.less";
+@import "../vendor/froala/less/plugins/colors.less";
+@import "../vendor/froala/less/plugins/emoticons.less";
 
 // Functional
-@import "../vendor/froala_drm/less/plugins/line_breaker.less";
-@import "../vendor/froala_drm/less/plugins/draggable.less";
+@import "../vendor/froala/less/plugins/line_breaker.less";
+@import "../vendor/froala/less/plugins/draggable.less";
 
 // More testing needed
-//import "../vendor/froala_drm/less/plugins/quick_insert.less";
+//import "../vendor/froala/less/plugins/quick_insert.less";
 
 // Base styles
-@import "_base_styles.less";
+@import "../vendor/froala/less/style.less";
 
 .fr-view {
     @import "../../../../models/editorsetting/default_styles.less";
@@ -49,7 +49,8 @@
 @ui-border-top: 1px solid @ui-border-color;
 @editor-padding: 20px;
 @btn-hover-bg: #ddd;
-@btn-text: fade(@btn-secondary-color, 80%);
+@btn-text: @color-text-grey-1;
+@btn-hover-text: @color-text-grey-1;
 @btn-font-size: 14;
 @btn-active-text: #000;
 @input-label-color: @color-label;
@@ -67,7 +68,8 @@
 //
 
 .field-flush .field-richeditor {
-    &, &.editor-focus {
+    &,
+    &.editor-focus {
         border: none;
     }
 }
@@ -88,9 +90,9 @@
 
 .field-richeditor {
     border: 1px solid @input-border;
-    .box-shadow(@input-box-shadow);
-    .border-radius(@input-border-radius);
-    .transition(@input-transition);
+    box-shadow: @input-box-shadow;
+    border-radius: @input-border-radius;
+    transition: @input-transition;
 
     // Prevents an ugly flash during the time the editor loads
     > textarea {
@@ -101,18 +103,20 @@
         border-color: @color-form-field-border-focus;
     }
 
-    &.size-tiny   { .richeditor-set-height(@size-tiny); }
-    &.size-small  { .richeditor-set-height(@size-small); }
-    &.size-large  { .richeditor-set-height(@size-large); }
-    &.size-huge   { .richeditor-set-height(@size-huge); }
-    &.size-giant  { .richeditor-set-height(@size-giant); }
-
-    &.stretch {
-        &.size-tiny { min-height: @size-tiny; }
-        &.size-small { min-height: @size-small; }
-        &.size-large { min-height: @size-large; }
-        &.size-huge { min-height: @size-huge; }
-        &.size-giant { min-height: @size-giant; }
+    &.size-tiny {
+        .richeditor-set-height(@size-tiny);
+    }
+    &.size-small {
+        .richeditor-set-height(@size-small);
+    }
+    &.size-large {
+        .richeditor-set-height(@size-large);
+    }
+    &.size-huge {
+        .richeditor-set-height(@size-huge);
+    }
+    &.size-giant {
+        .richeditor-set-height(@size-giant);
     }
 }
 
@@ -122,10 +126,6 @@
 
 .fr-popup {
     z-index: 9995 !important;
-}
-
-.fr-toolbar {
-    z-index: 11 !important;
 }
 
 .fr-separator.fr-hs {
@@ -143,7 +143,7 @@
         height: 100% !important;
         width: 100% !important;
         .border-radius(0) !important;
-        overflow: visible;
+        overflow: hidden;
 
         .fr-toolbar {
             .border-radius(0) !important;
@@ -162,7 +162,8 @@
             }
         }
 
-        .fr-view, textarea {
+        .fr-view,
+        textarea {
             height: 100%;
         }
 
@@ -172,6 +173,11 @@
         }
     }
 }
+
+//
+// For the Vue mode styling see
+// backend/vuecomponents/richeditordocumentconnector/assets/less/_formwidget.less
+//
 
 //
 // Placeholders and snippets
@@ -193,7 +199,8 @@
         line-height: 150%;
         .border-radius(3px);
 
-        &:focus, &.inspector-open {
+        &:focus,
+        &.inspector-open {
             border-color: #2581b8;
             border-style: solid;
             outline: none;
@@ -204,7 +211,8 @@
         .richeditor-snippet();
     }
 
-    figure[data-video], figure[data-audio] {
+    figure[data-video],
+    figure[data-audio] {
         padding-left: 13px;
 
         &:after {
@@ -238,50 +246,5 @@
     a.fr-floating-btn {
         color: @btn-text;
         text-decoration: none;
-    }
-}
-
-//
-// Additions to disabled state
-//
-
-.fr-box.fr-basic {
-    // Toolbar
-    .fr-toolbar.fr-disabled {
-        .fr-command {
-            cursor: not-allowed;
-
-            &:hover, &:focus {
-                color: #bdbdbd;
-                -webkit-box-shadow: none;
-                box-shadow: none;
-
-                &::after {
-                    border-top-color: #bdbdbd!important;
-                }
-            }
-
-            &.fr-btn-hover {
-                color: #bdbdbd; background: transparent;
-
-                &::after {
-                    border-top-color:#bdbdbd !important
-                }
-            }
-
-            &.fr-btn.fr-options {
-                &:hover, &:focus {
-                    border-left:solid 1px transparent;
-                }
-                &.fr-btn-hover {
-                    border-left:solid 1px transparent;
-                }
-            }
-        }
-    }
-
-    // Content
-    .fr-element.fr-disabled {
-        cursor: not-allowed;
     }
 }

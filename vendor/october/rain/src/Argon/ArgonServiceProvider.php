@@ -2,23 +2,27 @@
 
 use October\Rain\Support\ServiceProvider;
 
+/**
+ * ArgonServiceProvider
+ *
+ * @package october\argon
+ * @author Alexey Bobkov, Samuel Georges
+ */
 class ArgonServiceProvider extends ServiceProvider
 {
     /**
-     * Indicates if loading of the provider is deferred.
-     *
-     * @var bool
+     * register the service provider.
      */
-    protected $defer = false;
+    public function register()
+    {
+    }
 
     /**
-     * Bootstrap the application events.
-     *
-     * @return void
+     * boot the application events
      */
     public function boot()
     {
-        $locale = $this->app['translator']->getLocale();
+        $locale = $this->app['config']->get('app.locale');
 
         $this->setArgonLocale($locale);
 
@@ -28,7 +32,7 @@ class ArgonServiceProvider extends ServiceProvider
     }
 
     /**
-     * Sets the locale using the correct load order.
+     * setArgonLocale sets the locale using the correct load order.
      */
     protected function setArgonLocale($locale)
     {
@@ -47,21 +51,12 @@ class ArgonServiceProvider extends ServiceProvider
     {
         if ($position = strpos($locale, '-')) {
             $target = substr($locale, 0, $position);
-            $resource = __DIR__ . '/../../../../jenssegers/date/src/Lang/'.$target.'.php';
+            $resource = __DIR__ . '/../../../../nesbot/carbon/src/Carbon/Lang/'.$target.'.php';
             if (file_exists($resource)) {
                 return $target;
             }
         }
 
         return $this->app['config']->get('app.fallback_locale');
-    }
-
-    /**
-     * Register the service provider.
-     *
-     * @return void
-     */
-    public function register()
-    {
     }
 }

@@ -2,17 +2,23 @@
 
 use Illuminate\Database\Eloquent\Model;
 
+/**
+ * HasOneOrMany
+ *
+ * @package october\database
+ * @author Alexey Bobkov, Samuel Georges
+ */
 trait HasOneOrMany
 {
     use DeferOneOrMany;
 
     /**
-     * @var string The "name" of the relationship.
+     * @var string relationName is the "name" of the relationship.
      */
     protected $relationName;
 
     /**
-     * Save the supplied related model with deferred binding support.
+     * save the supplied related model with deferred binding support.
      */
     public function save(Model $model, $sessionKey = null)
     {
@@ -25,7 +31,7 @@ trait HasOneOrMany
     }
 
     /**
-     * Alias for the addMany() method.
+     * saveMany is an alias for the addMany() method
      * @param  array  $models
      * @return array
      */
@@ -37,7 +43,7 @@ trait HasOneOrMany
     }
 
     /**
-     * Create a new instance of this related model with deferred binding support.
+     * create a new instance of this related model with deferred binding support
      */
     public function create(array $attributes = [], $sessionKey = null)
     {
@@ -51,26 +57,62 @@ trait HasOneOrMany
     }
 
     /**
-     * Adds a model to this relationship type.
+     * add a model to this relationship type
      */
     public function add(Model $model, $sessionKey = null)
     {
         if ($sessionKey === null) {
-            $model->setAttribute($this->getForeignKeyName(), $this->getParentKey());
-
-            if (!$model->exists || $model->isDirty()) {
-                $model->save();
+            /**
+             * @event model.relation.beforeAdd
+             * Called before adding a relation to the model (for AttachOneOrMany, HasOneOrMany & MorphOneOrMany relations)
+             *
+             * Example usage:
+             *
+             *     $model->bindEvent('model.relation.beforeAdd', function (string $relationName, \October\Rain\Database\Model $relatedModel) use (\October\Rain\Database\Model $model) {
+             *         if ($relationName === 'some_relation') {
+             *             return false;
+             *         }
+             *     });
+             *
+             */
+            if ($this->parent->fireEvent('model.relation.beforeAdd', [$this->relationName, $model], true) === false) {
+                return;
             }
 
-            /*
-             * Use the opportunity to set the relation in memory
-             */
+            // Associate the model
+            if ($this->parent->exists) {
+                $model->setAttribute($this->getForeignKeyName(), $this->getParentKey());
+                $model->save();
+            }
+            else {
+                $this->parent->bindEventOnce('model.afterSave', function () use ($model) {
+                    $model->setAttribute($this->getForeignKeyName(), $this->getParentKey());
+                    $model->save();
+                });
+            }
+
+            // Use the opportunity to set the relation in memory
             if ($this instanceof HasOne) {
                 $this->parent->setRelation($this->relationName, $model);
             }
             else {
                 $this->parent->reloadRelations($this->relationName);
             }
+
+            /**
+             * @event model.relation.add
+             * Called after adding a relation to the model (for AttachOneOrMany, HasOneOrMany & MorphOneOrMany relations)
+             *
+             * Example usage:
+             *
+             *     $model->bindEvent('model.relation.add', function (string $relationName, \October\Rain\Database\Model $relatedModel) use (\October\Rain\Database\Model $model) {
+             *         $relatedClass = get_class($relatedModel);
+             *         $modelClass = get_class($model);
+             *         traceLog("{$relatedClass} was added as {$relationName} to {$modelClass}.");
+             *     });
+             *
+             */
+            $this->parent->fireEvent('model.relation.add', [$this->relationName, $model]);
         }
         else {
             $this->parent->bindDeferred($this->relationName, $model, $sessionKey);
@@ -78,7 +120,7 @@ trait HasOneOrMany
     }
 
     /**
-     * Attach an array of models to the parent instance with deferred binding support.
+     * addMany attaches an array of models to the parent instance with deferred binding support
      * @param  array  $models
      * @return void
      */
@@ -90,23 +132,65 @@ trait HasOneOrMany
     }
 
     /**
-     * Removes a model from this relationship type.
+     * remove a model from this relationship type.
      */
     public function remove(Model $model, $sessionKey = null)
     {
         if ($sessionKey === null) {
-            $model->setAttribute($this->getForeignKeyName(), null);
-            $model->save();
-
-            /*
-             * Use the opportunity to set the relation in memory
+            /**
+             * @event model.relation.beforeRemove
+             * Called before removing a relation to the model (for AttachOneOrMany, HasOneOrMany & MorphOneOrMany relations)
+             *
+             * Example usage:
+             *
+             *     $model->bindEvent('model.relation.beforeRemove', function (string $relationName, \October\Rain\Database\Model $relatedModel) use (\October\Rain\Database\Model $model) {
+             *         if ($relationName === 'perm_relation') {
+             *             return false;
+             *         }
+             *     });
+             *
              */
+            if ($this->parent->fireEvent('model.relation.beforeRemove', [$this->relationName, $model], true) === false) {
+                return;
+            }
+
+            if (!$this->isModelRemovable($model)) {
+                return;
+            }
+
+            $options = $this->parent->getRelationDefinition($this->relationName);
+
+            // Delete or orphan the model
+            if (array_get($options, 'delete', false)) {
+                $model->delete();
+            }
+            else {
+                $model->setAttribute($this->getForeignKeyName(), null);
+                $model->save();
+            }
+
+            // Use this opportunity to set the relation in memory
             if ($this instanceof HasOne) {
                 $this->parent->setRelation($this->relationName, null);
             }
             else {
                 $this->parent->reloadRelations($this->relationName);
             }
+
+            /**
+             * @event model.relation.remove
+             * Called after removing a relation to the model (for AttachOneOrMany, HasOneOrMany & MorphOneOrMany relations)
+             *
+             * Example usage:
+             *
+             *     $model->bindEvent('model.relation.remove', function (string $relationName, \October\Rain\Database\Model $relatedModel) use (\October\Rain\Database\Model $model) {
+             *         $relatedClass = get_class($relatedModel);
+             *         $modelClass = get_class($model);
+             *         traceLog("{$relatedClass} was removed from {$modelClass}.");
+             *     });
+             *
+             */
+            $this->parent->fireEvent('model.relation.remove', [$this->relationName, $model]);
         }
         else {
             $this->parent->unbindDeferred($this->relationName, $model, $sessionKey);
@@ -114,7 +198,15 @@ trait HasOneOrMany
     }
 
     /**
-     * Get the foreign key for the relationship.
+     * isModelRemovable returns true if an existing model is already associated
+     */
+    protected function isModelRemovable($model): bool
+    {
+        return ((string) $model->getAttribute($this->getForeignKeyName()) === (string) $this->getParentKey());
+    }
+
+    /**
+     * getForeignKey for the relationship
      * @return string
      */
     public function getForeignKey()
@@ -123,7 +215,7 @@ trait HasOneOrMany
     }
 
     /**
-     * Get the associated "other" key of the relationship.
+     * getOtherKey of the relationship
      * @return string
      */
     public function getOtherKey()

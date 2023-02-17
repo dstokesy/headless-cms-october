@@ -141,10 +141,9 @@ trait UrlMaker
             return static::$urlPageName;
         }
 
-        /*
-         * Cache
-         */
-        $key = 'urlMaker'.$this->urlComponentName.crc32(get_class($this));
+        // Cache
+        //
+        $key = 'cms_url_maker_'.$this->urlComponentName.crc32(get_class($this));
 
         $cached = Cache::get($key, false);
         if ($cached !== false && ($cached = @unserialize($cached)) !== false) {
@@ -159,9 +158,8 @@ trait UrlMaker
             return static::$urlPageName = array_get($cached, 'fileName');
         }
 
-        /*
-         * Fallback
-         */
+        // Fallback
+        //
         $page = null;
         $useProperty = property_exists($this, 'urlComponentProperty');
 
@@ -185,12 +183,13 @@ trait UrlMaker
         $filePath = $page->getFilePath();
 
         $cached = [
-            'path'     => $filePath,
+            'path' => $filePath,
             'fileName' => $baseFileName,
-            'mtime'    => @File::lastModified($filePath)
+            'mtime' => @File::lastModified($filePath)
         ];
 
-        Cache::put($key, serialize($cached), Config::get('cms.parsedPageCacheTTL', 1440));
+        $expiresAt = now()->addMinutes(Config::get('cms.template_cache_ttl', 1440));
+        Cache::put($key, serialize($cached), $expiresAt);
 
         return static::$urlPageName = $baseFileName;
     }

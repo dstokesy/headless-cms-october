@@ -29,13 +29,10 @@
         "symfony/polyfill-ctype": "^1.8"
     },
     "require-dev": {
-        "symfony/phpunit-bridge": "^4.4.9|^5.0.9",
+        "symfony/phpunit-bridge": "^4.4.9|^5.0.9|^6.0",
         "psr/container": "^1.0"
     },
     "autoload": {
-        "psr-0" : {
-            "Twig_" : "lib/"
-        },
         "psr-4" : {
             "Twig\\" : "src/"
         }
@@ -47,7 +44,7 @@
     },
     "extra": {
         "branch-alias": {
-            "dev-master": "2.14-dev"
+            "dev-master": "3.5-dev"
         }
     }
 }

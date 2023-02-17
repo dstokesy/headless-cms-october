@@ -2,19 +2,19 @@
 
 use Illuminate\Database\Eloquent\Relations\BelongsToMany as BelongsToManyBase;
 
-/*
- * Handles the constraints and filters defined by a relation.
+/**
+ * DefinedConstraints handles the constraints and filters defined by a relation
  * eg: 'conditions' => 'is_published = 1'
+ *
+ * @package october\database
+ * @author Alexey Bobkov, Samuel Georges
  */
 trait DefinedConstraints
 {
-
     /**
-     * Set the defined constraints on the relation query.
-     *
-     * @return void
+     * addDefinedConstraints to the relation query
      */
-    public function addDefinedConstraints()
+    public function addDefinedConstraints(): void
     {
         $args = $this->parent->getRelationDefinition($this->relationName);
 
@@ -24,42 +24,32 @@ trait DefinedConstraints
     }
 
     /**
-     * Add relation based constraints.
-     *
-     * @param Illuminate\Database\Eloquent\Relations\Relation $relation
-     * @param array $args
+     * addDefinedConstraintsToRelation
      */
-    public function addDefinedConstraintsToRelation($relation, $args = null)
+    public function addDefinedConstraintsToRelation($relation, array $args = null)
     {
         if ($args === null) {
             $args = $this->parent->getRelationDefinition($this->relationName);
         }
 
-        /*
-         * Default models (belongsTo)
-         */
+        // Default models (belongsTo, hasOne, hasOneThrough, morphOne)
         if ($defaultData = array_get($args, 'default')) {
-            $relation->withDefault($defaultData === true ? null : $defaultData);
+            $relation->withDefault($defaultData);
         }
 
-        /*
-         * Pivot data (belongsToMany, morphToMany, morphByMany)
-         */
+        // Pivot data (belongsToMany, morphToMany, morphByMany)
         if ($pivotData = array_get($args, 'pivot')) {
             $relation->withPivot($pivotData);
         }
 
-        /*
-         * Pivot timestamps (belongsToMany, morphToMany, morphByMany)
-         */
+        // Pivot timestamps (belongsToMany, morphToMany, morphByMany)
         if (array_get($args, 'timestamps')) {
             $relation->withTimestamps();
         }
 
-        /*
-         * Count "helper" relation
-         */
-        if ($count = array_get($args, 'count')) {
+        // Count "helper" relation
+        // @deprecated use Laravel withCount() method instead
+        if (array_get($args, 'count')) {
             if ($relation instanceof BelongsToManyBase) {
                 $relation->countMode = true;
             }
@@ -75,27 +65,21 @@ trait DefinedConstraints
     }
 
     /**
-     * Add query based constraints.
-     *
-     * @param October\Rain\Database\QueryBuilder $query
-     * @param array $args
+     * addDefinedConstraintsToQuery
      */
-    public function addDefinedConstraintsToQuery($query, $args = null)
+    public function addDefinedConstraintsToQuery($query, array $args = null)
     {
         if ($args === null) {
             $args = $this->parent->getRelationDefinition($this->relationName);
         }
 
-        /*
-         * Conditions
-         */
+        // Conditions
         if ($conditions = array_get($args, 'conditions')) {
             $query->whereRaw($conditions);
         }
 
-        /*
-         * Sort order
-         */
+        // Sort order
+        // @deprecated count is deprecated
         $hasCountArg = array_get($args, 'count') !== null;
         if (($orderBy = array_get($args, 'order')) && !$hasCountArg) {
             if (!is_array($orderBy)) {
@@ -108,18 +92,21 @@ trait DefinedConstraints
 
                 $parts = explode(' ', $order);
                 if (count($parts) > 1) {
-                    list($column, $direction) = $parts;
+                    [$column, $direction] = $parts;
                 }
 
                 $query->orderBy($column, $direction);
             }
         }
 
-        /*
-         * Scope
-         */
+        // Scope
         if ($scope = array_get($args, 'scope')) {
-            $query->$scope($this->parent);
+            if (is_string($scope)) {
+                $query->$scope($this->parent);
+            }
+            else {
+                $scope($query, $this->parent, $this->related);
+            }
         }
     }
 }

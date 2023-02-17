@@ -1,8 +1,8 @@
 @import "../../../../assets/less/core/boot.less";
 
 
-@color-colorpicker-border: #cecece;
-@color-colorpicker-active-border: #fff;
+@color-colorpicker-border: rgba(53, 66, 91, 0.1);
+@color-colorpicker-active-border: rgba(255, 255, 255, 0.7);
 @color-colorpicker-active: #5fb6f5;
 
 .field-colorpicker {
@@ -17,7 +17,7 @@
             float: left;
             text-indent: -9999px;
             padding: 3px;
-            margin: 14px 14px 0 0;
+            margin: 13px 13px 0 0;
             cursor: pointer;
             border-radius: @border-radius-base;
 
@@ -26,6 +26,7 @@
                 width: 25px;
                 height: 25px;
                 border: 1px solid @color-colorpicker-border;
+                border-radius: 100%;
             }
 
             &:hover,
@@ -138,10 +139,11 @@
 .sp-color { right: 15%; }
 
 .sp-container {
-    border: none;
-    border-radius: @border-radius-base;
+    border: @popup-border!important;
+    background: white;
+    border-radius: 8px;
     z-index: @zindex-datepicker;
-    .box-shadow(@overlay-box-shadow);
+    box-shadow: @box-shadow-z2;
     font-family: @font-family-base;
 }
 
@@ -216,13 +218,13 @@
     line-height: 1;
     color: @close-color !important;
     text-shadow: @close-text-shadow;
-    .opacity(.2);
+    opacity: .2;
 
     &:hover,
     &:focus {
         text-decoration: none;
         cursor: pointer;
-        .opacity(.5);
+        opacity: .5;
     }
 }
 

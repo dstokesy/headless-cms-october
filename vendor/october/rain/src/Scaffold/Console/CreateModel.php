@@ -1,88 +1,63 @@
 <?php namespace October\Rain\Scaffold\Console;
 
-use October\Rain\Scaffold\GeneratorCommand;
-use Symfony\Component\Console\Input\InputOption;
-use Symfony\Component\Console\Input\InputArgument;
+use October\Rain\Scaffold\GeneratorCommandBase;
 
-class CreateModel extends GeneratorCommand
+/**
+ * CreateModel
+ */
+class CreateModel extends GeneratorCommandBase
 {
     /**
-     * The console command name.
-     *
-     * @var string
+     * @var string signature for the command
      */
-    protected $name = 'create:model';
+    protected $signature = 'create:model {namespace : App or Plugin Namespace (eg: Acme.Blog)}
+        {name : The name of the model. Eg: Post}
+        {--soft-deletes : Implement soft deletion on this model}
+        {--no-timestamps : Disable auto-timestamps on this model}
+        {--no-migration : Do not generate a migration file for this model}
+        {--o|overwrite : Overwrite existing files with generated ones}';
 
     /**
-     * The console command description.
-     *
-     * @var string
+     * @var string description of the console command
      */
     protected $description = 'Creates a new model.';
 
     /**
-     * The type of class being generated.
-     *
-     * @var string
+     * @var string type of class being generated
      */
-    protected $type = 'Model';
+    protected $typeLabel = 'Model';
 
     /**
-     * A mapping of stub to generated file.
-     *
-     * @var array
+     * makeStubs makes all stubs
      */
-    protected $stubs = [
-        'model/model.stub'        => 'models/{{studly_name}}.php',
-        'model/fields.stub'       => 'models/{{lower_name}}/fields.yaml',
-        'model/columns.stub'      => 'models/{{lower_name}}/columns.yaml',
-        'model/create_table.stub' => 'updates/create_{{snake_plural_name}}_table.php',
-    ];
-
-    /**
-     * Prepare variables for stubs.
-     *
-     * return @array
-     */
-    protected function prepareVars()
+    public function makeStubs()
     {
-        $pluginCode = $this->argument('plugin');
+        $this->makeStub('model/model.stub', 'models/{{studly_name}}.php');
+        $this->makeStub('model/fields.stub', 'models/{{lower_name}}/fields.yaml');
+        $this->makeStub('model/columns.stub', 'models/{{lower_name}}/columns.yaml');
 
-        $parts = explode('.', $pluginCode);
-        $plugin = array_pop($parts);
-        $author = array_pop($parts);
-
-        $model = $this->argument('model');
-
-        return [
-            'name' => $model,
-            'author' => $author,
-            'plugin' => $plugin
-        ];
+        if (!$this->option('no-migration')) {
+            $this->call('create:migration', array_filter([
+                'name' => 'Create'.$this->vars['studly_plural_name'].'Table',
+                'namespace' => $this->argument('namespace'),
+                '--create' => $this->vars['namespace_table'].'_'.$this->vars['snake_plural_name'],
+                '--soft-deletes' => $this->option('soft-deletes'),
+                '--no-timestamps' => $this->option('no-timestamps'),
+                '--overwrite' => $this->option('overwrite')
+            ]));
+        }
     }
 
     /**
-     * Get the console command arguments.
-     *
-     * @return array
+     * prepareVars prepares variables for stubs
      */
-    protected function getArguments()
+    protected function prepareVars(): array
     {
         return [
-            ['plugin', InputArgument::REQUIRED, 'The name of the plugin. Eg: RainLab.Blog'],
-            ['model', InputArgument::REQUIRED, 'The name of the model. Eg: Post'],
-        ];
-    }
-
-    /**
-     * Get the console command options.
-     *
-     * @return array
-     */
-    protected function getOptions()
-    {
-        return [
-            ['force', null, InputOption::VALUE_NONE, 'Overwrite existing files with generated ones.'],
+            'name' => $this->argument('name'),
+            'namespace' => $this->argument('namespace'),
+            'softDeletes' => $this->option('soft-deletes'),
+            'timestamps' => !$this->option('no-timestamps')
         ];
     }
 }

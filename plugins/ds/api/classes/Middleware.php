@@ -34,6 +34,7 @@ class Middleware
 	private function checkAuth()
 	{
 		return true;
+
 		$user       = env('API_USER', 'admin');
 		$password   = env('API_PASSWORD', 'password');
 

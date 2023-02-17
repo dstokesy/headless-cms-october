@@ -1,31 +1,27 @@
 <?php namespace October\Rain\Database;
 
 /**
- * Database driver dongle
- *
- * This class uses regex to convert MySQL to various other drivers.
+ * Dongle driver for database that uses regex to convert MySQL to various other drivers.
  */
 class Dongle
 {
     /**
-     * @var \Illuminate\Database\DatabaseManager Database helper object
+     * @var DB db helper object
      */
     protected $db;
 
     /**
-     * @var string Driver to convert to: mysql, sqlite, pgsql, sqlsrv, postgis.
+     * @var string driver to convert to: mysql, sqlite, pgsql, sqlsrv, postgis
      */
     protected $driver;
 
     /**
-     * @var bool Used to determine whether strict mode has been disabled.
+     * @var bool strictModeDisabled used to determine whether strict mode has been disabled
      */
     protected $strictModeDisabled;
 
     /**
-     * Constructor.
-     * @param string $driver
-     * @param \Illuminate\Database\DatabaseManager $db
+     * __construct
      */
     public function __construct($driver = 'mysql', $db = null)
     {
@@ -34,21 +30,17 @@ class Dongle
     }
 
     /**
-     * Transforms and executes a raw SQL statement
-     * @param  string $sql
-     * @return mixed
+     * raw transforms and executes a raw SQL statement
      */
-    public function raw($sql)
+    public function raw(string $sql)
     {
         return $this->db->raw($this->parse($sql));
     }
 
     /**
-     * Transforms an SQL statement to match the active driver.
-     * @param  string $sql
-     * @return string
+     * parse transforms an SQL statement to match the active driver.
      */
-    public function parse($sql)
+    public function parse(string $sql): string
     {
         $sql = $this->parseGroupConcat($sql);
         $sql = $this->parseConcat($sql);
@@ -58,12 +50,14 @@ class Dongle
     }
 
     /**
-     * Transforms GROUP_CONCAT statement.
-     * @param  string $sql
-     * @return string
+     * parseGroupConcat transforms GROUP_CONCAT statement
      */
-    public function parseGroupConcat($sql)
+    public function parseGroupConcat(string $sql): string
     {
+        if ($this->driver === 'mysql') {
+            return $sql;
+        }
+
         $result = preg_replace_callback('/group_concat\((.+)\)/i', function ($matches) {
             if (!isset($matches[1])) {
                 return $matches[0];
@@ -71,7 +65,6 @@ class Dongle
 
             switch ($this->driver) {
                 default:
-                case 'mysql':
                     return $matches[0];
 
                 case 'pgsql':
@@ -82,7 +75,7 @@ class Dongle
             }
         }, $sql);
 
-        if ($this->driver == 'pgsql' || $this->driver == 'postgis') {
+        if ($this->driver === 'pgsql' || $this->driver === 'postgis') {
             $result = preg_replace("/\\(([]a-zA-Z\\-\\_\\.]+)\\,/i", "($1::VARCHAR,", $result);
             $result = str_ireplace('group_concat(', 'string_agg(', $result);
         }
@@ -90,7 +83,7 @@ class Dongle
         /*
          * Requires https://groupconcat.codeplex.com/
          */
-        if ($this->driver == 'sqlsrv') {
+        if ($this->driver === 'sqlsrv') {
             $result = str_ireplace('group_concat(', 'dbo.GROUP_CONCAT_D(', $result);
         }
 
@@ -98,13 +91,22 @@ class Dongle
     }
 
     /**
-     * Transforms CONCAT statement.
-     * @param  string $sql
-     * @return string
+     * parseConcat transforms CONCAT statement
      */
-    public function parseConcat($sql)
+    public function parseConcat(string $sql): string
     {
-        return preg_replace_callback('/(?:group_)?concat\((.+)\)(?R)?/i', function ($matches) {
+        if ($this->driver === 'mysql') {
+            return $sql;
+        }
+
+        // Pre process special characters inside quotes
+        $charComma = 'X___COMMA_CHAR___X';
+        $result = preg_replace_callback("/'(.*?[^\\\\])'/i", function ($matches) use ($charComma) {
+            return str_replace(',', $charComma, $matches[0]);
+        }, $sql);
+
+        // Convert concat() to pipe (||) syntax
+        $result = preg_replace_callback('/(?:group_)?concat\((.+)\)(?R)?/i', function ($matches) {
             if (!isset($matches[1])) {
                 return $matches[0];
             }
@@ -118,7 +120,6 @@ class Dongle
 
             switch ($this->driver) {
                 default:
-                case 'mysql':
                     return $matches[0];
 
                 case 'pgsql':
@@ -126,21 +127,24 @@ class Dongle
                 case 'sqlite':
                     return implode(' || ', $concatFields);
             }
-        }, $sql);
+        }, $result);
+
+        // Replace special characters back to their originals
+        $result = str_replace($charComma, ',', $result);
+
+        return $result;
     }
 
     /**
-     * Transforms IFNULL statement.
-     * @param  string $sql
-     * @return string
+     * parseIfNull transforms IFNULL statement
      */
-    public function parseIfNull($sql)
+    public function parseIfNull(string $sql): string
     {
-        if ($this->driver == 'pgsql' || $this->driver == 'postgis') {
+        if ($this->driver === 'pgsql' || $this->driver === 'postgis') {
             return str_ireplace('ifnull(', 'coalesce(', $sql);
         }
 
-        if ($this->driver == 'sqlsrv') {
+        if ($this->driver === 'sqlsrv') {
             return str_ireplace('ifnull(', 'isnull(', $sql);
         }
 
@@ -148,32 +152,28 @@ class Dongle
     }
 
     /**
-     * Transforms true|false expressions in a statement.
-     * @param  string $sql
-     * @return string
+     * parseBooleanExpression transforms true|false expressions in a statement
      */
-    public function parseBooleanExpression($sql)
+    public function parseBooleanExpression(string $sql): string
     {
-        if ($this->driver != 'sqlite') {
+        if ($this->driver !== 'sqlite' && $this->driver !== 'sqlsrv') {
             return $sql;
         }
 
         return preg_replace_callback('/(\w+)\s*(=|<>)\s*(true|false)($|\s)/i', function ($matches) {
             array_shift($matches);
             $space = array_pop($matches);
-            $matches[2] = $matches[2] == 'true' ? 1 : 0;
+            $matches[2] = $matches[2] === 'true' ? 1 : 0;
             return implode(' ', $matches) . $space;
         }, $sql);
     }
 
     /**
-     * Some drivers require same-type comparisons.
-     * @param  string $sql
-     * @return string
+     * cast for some drivers that require same-type comparisons
      */
-    public function cast($sql, $asType = 'INTEGER')
+    public function cast(string $sql, $asType = 'INTEGER'): string
     {
-        if ($this->driver != 'pgsql' && $this->driver != 'postgis') {
+        if ($this->driver !== 'pgsql' && $this->driver !== 'postgis') {
             return $sql;
         }
 
@@ -181,7 +181,7 @@ class Dongle
     }
 
     /**
-     * Alters a table's TIMESTAMP field(s) to be nullable and converts existing values.
+     * convertTimestamps alters a table's TIMESTAMP field(s) to be nullable and converts existing values.
      *
      * This is needed to transition from older Laravel code that set DEFAULT 0, which is an
      * invalid date in newer MySQL versions where NO_ZERO_DATE is included in strict mode.
@@ -191,14 +191,14 @@ class Dongle
      */
     public function convertTimestamps($table, $columns = null)
     {
-        if ($this->driver != 'mysql') {
+        if ($this->driver !== 'mysql') {
             return;
         }
 
         if (!is_array($columns)) {
             $columns = is_null($columns) ? ['created_at', 'updated_at'] : [$columns];
         }
-        
+
         $prefixedTable = $this->getTablePrefix() . $table;
 
         foreach ($columns as $column) {
@@ -208,11 +208,11 @@ class Dongle
     }
 
     /**
-     * Used to disable strict mode during migrations
+     * disableStrictMode is used to disable strict mode during migration
      */
     public function disableStrictMode()
     {
-        if ($this->driver != 'mysql') {
+        if ($this->driver !== 'mysql') {
             return;
         }
 
@@ -225,8 +225,7 @@ class Dongle
     }
 
     /**
-     * Returns the driver name as a string, eg: pgsql
-     * @return string
+     * getDriver returns the driver name as a string, eg: pgsql
      */
     public function getDriver()
     {
@@ -234,10 +233,9 @@ class Dongle
     }
 
     /**
-     * Get the table prefix.
-     * @return string
+     * getTablePrefix gets the table prefix
      */
-    public function getTablePrefix()
+    public function getTablePrefix(): string
     {
         return $this->db->getTablePrefix();
     }

@@ -2,9 +2,14 @@
 
 use Request;
 
+/**
+ * SyntaxModelTrait for use in models
+ *
+ * @package october\parse
+ * @author Alexey Bobkov, Samuel Georges
+ */
 trait SyntaxModelTrait
 {
-
     public static function bootSyntaxModelTrait()
     {
         static::fetched(function ($model) {
@@ -29,7 +34,7 @@ trait SyntaxModelTrait
                 continue;
             }
 
-            if ($params['type'] == 'fileupload') {
+            if ($params['type'] === 'fileupload') {
                 $this->attachOne[$field] = 'System\Models\File';
             }
         }
@@ -48,10 +53,14 @@ trait SyntaxModelTrait
         }
 
         foreach ($fields as $field => $params) {
+            if (!isset($params['type'])) {
+                continue;
+            }
+
             /*
              * File upload
              */
-            if ($params['type'] == 'fileupload' && $this->hasRelation($field)) {
+            if ($params['type'] === 'fileupload' && $this->hasRelation($field)) {
                 if ($this->sessionKey) {
                     if ($image = $this->$field()->withDeferred($this->sessionKey)->first()) {
                         $data[$field] = $this->getThumbForImage($image, $params);
@@ -104,14 +113,18 @@ trait SyntaxModelTrait
 
         $newFields = [];
         foreach ($fields as $field => $params) {
-            if ($params['type'] != 'fileupload') {
+            if (!isset($params['type'])) {
+                continue;
+            }
+
+            if ($params['type'] !== 'fileupload') {
                 $newField = $this->getSyntaxDataColumnName().'['.$field.']';
             }
             else {
                 $newField = $field;
             }
 
-            if ($params['type'] == 'repeater') {
+            if ($params['type'] === 'repeater') {
                 $params['form']['fields'] = array_get($params, 'fields', []);
                 unset($params['fields']);
             }

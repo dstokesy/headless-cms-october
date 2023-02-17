@@ -2,17 +2,15 @@
 
 use October\Rain\Halcyon\Datasource\Resolver;
 use October\Rain\Support\ServiceProvider;
-use Illuminate\Cache\CacheManager;
 
 /**
- * Service provider
+ * HalcyonServiceProvider
  *
  * @package october\halcyon
  * @author Alexey Bobkov, Samuel Georges
  */
 class HalcyonServiceProvider extends ServiceProvider
 {
-
     /**
      * Bootstrap the application events.
      *
@@ -34,16 +32,14 @@ class HalcyonServiceProvider extends ServiceProvider
      */
     public function register()
     {
-        // The halcyon resolver is used to resolve various datasources,
-        // since multiple datasources might be managed.
+        Model::clearBootedModels();
+
+        Model::clearExtendedClasses();
+
+        Model::flushEventListeners();
+
         $this->app->singleton('halcyon', function ($app) {
             return new Resolver;
         });
-
-        if (MemoryCacheManager::isEnabled()) {
-            $this->app->extend(CacheManager::class, function ($cacheManager, $app) {
-                return new MemoryCacheManager($app);
-            });
-        }
     }
 }

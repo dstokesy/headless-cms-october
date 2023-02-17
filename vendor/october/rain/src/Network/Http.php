@@ -3,9 +3,7 @@
 use October\Rain\Exception\ApplicationException;
 
 /**
- * HTTP Network Access
- *
- * Used as a cURL wrapper for the HTTP protocol.
+ * Http Network Access is used as a cURL wrapper for the HTTP protocol
  *
  * @package october\network
  * @author Alexey Bobkov, Samuel Georges
@@ -57,7 +55,6 @@ use October\Rain\Exception\ApplicationException;
  *   });
  *
  */
-
 class Http
 {
     const METHOD_GET = 'GET';
@@ -68,87 +65,97 @@ class Http
     const METHOD_OPTIONS = 'OPTIONS';
 
     /**
-     * @var string The HTTP address to use.
+     * @var string url is the HTTP address to use
      */
     public $url;
 
     /**
-     * @var string The method the request should use.
+     * @var string method the request should use
      */
     public $method;
 
     /**
-     * @var array The headers to be sent with the request.
+     * @var array headers to be sent with the request
      */
     public $headers = [];
 
     /**
-     * @var string The last response body.
+     * @var callable headerCallbackFunc is a custom function for handling response headers
+     */
+    public $headerCallbackFunc;
+
+    /**
+     * @var string body is the last response body
      */
     public $body = '';
 
     /**
-     * @var string The last response body (without headers extracted).
+     * @var string rawBody is the last response body (without headers extracted)
      */
     public $rawBody = '';
 
     /**
-     * @var array The last returned HTTP code.
+     * @var array code is the last returned HTTP code
      */
     public $code;
 
     /**
-     * @var array The cURL response information.
+     * @var array info is the cURL response information
      */
     public $info;
 
     /**
-     * @var array cURL Options.
+     * @var array requestOptions contains cURL Options
      */
     public $requestOptions;
 
     /**
-     * @var array Request data.
+     * @var array requestData
      */
     public $requestData;
 
     /**
-     * @var array Request headers.
+     * @var array requestHeaders
      */
     public $requestHeaders;
 
     /**
-     * @var string Argument separator.
+     * @var string argumentSeparator
      */
     public $argumentSeparator = '&';
 
     /**
-     * @var string If writing response to a file, which file to use.
+     * @var string streamFile is the file to use when writing to a file
      */
     public $streamFile;
 
     /**
-     * @var string If writing response to a file, which write filter to apply.
+     * @var string streamFilter is the filter to apply when writing response to a file
      */
     public $streamFilter;
 
     /**
-     * @var int The maximum redirects allowed.
+     * @var int maxRedirects allowed
      */
     public $maxRedirects = 10;
 
     /**
-     * @var int Internal counter
+     * @var int redirectCount is an internal counter
      */
     protected $redirectCount = null;
 
     /**
-     * Make the object with common properties
+     * @var bool hasFileData determines if files are being sent with the request
+     */
+    protected $hasFileData = false;
+
+    /**
+     * make the object with common properties
      * @param string   $url     HTTP request address
      * @param string   $method  Request method (GET, POST, PUT, DELETE, etc)
      * @param callable $options Callable helper function to modify the object
      */
-    public static function make($url, $method, $options = null)
+    public static function make($url, $method, $options = null): Http
     {
         $http = new self;
         $http->url = $url;
@@ -162,82 +169,79 @@ class Http
     }
 
     /**
-     * Make a HTTP GET call.
+     * get makes a HTTP GET call
      * @param string $url
-     * @param callable $options
+     * @param array  $options
      * @return self
      */
-    public static function get($url, $options = null)
+    public static function get($url, $options = null): Http
     {
         $http = self::make($url, self::METHOD_GET, $options);
         return $http->send();
     }
 
     /**
-     * Make a HTTP POST call.
+     * post makes a HTTP POST call
      * @param string $url
-     * @param callable $options
+     * @param array  $options
      * @return self
      */
-    public static function post($url, $options = null)
+    public static function post($url, $options = null): Http
     {
         $http = self::make($url, self::METHOD_POST, $options);
         return $http->send();
     }
 
     /**
-     * Make a HTTP DELETE call.
+     * delete makes a HTTP DELETE call
      * @param string $url
-     * @param callable $options
+     * @param array  $options
      * @return self
      */
-    public static function delete($url, $options = null)
+    public static function delete($url, $options = null): Http
     {
         $http = self::make($url, self::METHOD_DELETE, $options);
         return $http->send();
     }
 
     /**
-     * Make a HTTP PATCH call.
+     * patch makes a HTTP PATCH call
      * @param string $url
-     * @param callable $options
+     * @param array  $options
      * @return self
      */
-    public static function patch($url, $options = null)
+    public static function patch($url, $options = null): Http
     {
         $http = self::make($url, self::METHOD_PATCH, $options);
         return $http->send();
     }
 
     /**
-     * Make a HTTP PUT call.
+     * put makes a HTTP PUT call
      * @param string $url
-     * @param callable $options
-     * @return self
+     * @param array  $options
      */
-    public static function put($url, $options = null)
+    public static function put($url, $options = null): Http
     {
         $http = self::make($url, self::METHOD_PUT, $options);
         return $http->send();
     }
 
     /**
-     * Make a HTTP OPTIONS call.
+     * options makes a HTTP OPTIONS call
      * @param string $url
-     * @param callable $options
-     * @return self
+     * @param array  $options
      */
-    public static function options($url, $options = null)
+    public static function options($url, $options = null): Http
     {
         $http = self::make($url, self::METHOD_OPTIONS, $options);
         return $http->send();
     }
 
     /**
-     * Execute the HTTP request.
-     * @return string response body
+     * send the HTTP request
      */
-    public function send()
+    public function send(): Http
     {
         if (!function_exists('curl_init')) {
             echo 'cURL PHP extension required.'.PHP_EOL;
@@ -266,7 +270,7 @@ class Http
         /*
          * Set request method
          */
-        if ($this->method == self::METHOD_POST) {
+        if ($this->method === self::METHOD_POST) {
             curl_setopt($curl, CURLOPT_POST, true);
         }
         elseif ($this->method !== self::METHOD_GET) {
@@ -280,7 +284,7 @@ class Http
             if (in_array($this->method, [self::METHOD_POST, self::METHOD_PATCH, self::METHOD_PUT])) {
                 curl_setopt($curl, CURLOPT_POSTFIELDS, $this->getRequestData());
             }
-            elseif ($this->method == self::METHOD_GET) {
+            elseif (in_array($this->method, [self::METHOD_GET, self::METHOD_DELETE])) {
                 curl_setopt($curl, CURLOPT_URL, $this->url . '?' . $this->getRequestData());
             }
         }
@@ -298,7 +302,15 @@ class Http
         }
 
         /*
-         * Handle output to file
+         * Custom header function
+         */
+        if ($this->headerCallbackFunc) {
+            curl_setopt($curl, CURLOPT_HEADER, false);
+            curl_setopt($curl, CURLOPT_HEADERFUNCTION, $this->headerCallbackFunc);
+        }
+
+        /*
+         * Execute output to file
          */
         if ($this->streamFile) {
             $stream = fopen($this->streamFile, 'w');
@@ -310,7 +322,7 @@ class Http
             curl_exec($curl);
         }
         /*
-         * Handle output to variable
+         * Execute output to variable
          */
         else {
             $response = $this->rawBody = curl_exec($curl);
@@ -320,7 +332,7 @@ class Http
         }
 
         $this->info = curl_getinfo($curl);
-        $this->code = curl_getinfo($curl, CURLINFO_HTTP_CODE);
+        $this->code = curl_getinfo($curl, CURLINFO_RESPONSE_CODE);
 
         /*
          * Close resources
@@ -339,7 +351,7 @@ class Http
                 $this->redirectCount = $this->maxRedirects;
             }
             if (in_array($this->code, [301, 302])) {
-                $this->url = array_get($this->info, 'url');
+                $this->url = array_get($this->info, 'redirect_url');
                 if (!empty($this->url) && $this->redirectCount > 0) {
                     $this->redirectCount -= 1;
                     return $this->send();
@@ -351,58 +363,39 @@ class Http
     }
 
     /**
-     * Return the request data set.
-     * @return string
+     * getRequestData returns the request data set
      */
     public function getRequestData()
     {
-        if (
-            $this->method !== self::METHOD_GET
-            && isset($this->requestOptions[CURLOPT_POSTFIELDS])
-            && empty($this->requestData)
-        ) {
-            return $this->requestOptions[CURLOPT_POSTFIELDS];
+        if (empty($this->requestData)) {
+            return isset($this->requestOptions[CURLOPT_POSTFIELDS])
+                ? $this->requestOptions[CURLOPT_POSTFIELDS]
+                : '';
         }
-        if (!empty($this->requestData)) {
+
+        if ($this->method === self::METHOD_GET || !$this->hasFileData) {
             return http_build_query($this->requestData, '', $this->argumentSeparator);
         }
-        return '';
-    }
 
-    /**
-     * Turn a header string into an array.
-     * @param string $header
-     * @return array
-     */
-    protected function headerToArray($header)
-    {
-        $headers = [];
-        $parts = explode("\r\n", $header);
-        foreach ($parts as $singleHeader) {
-            $delimiter = strpos($singleHeader, ': ');
-            if ($delimiter !== false) {
-                $key = substr($singleHeader, 0, $delimiter);
-                $val = substr($singleHeader, $delimiter + 2);
-                $headers[$key] = $val;
+        // This will trigger multipart/form-data content type and needs an array,
+        // make some attempt at supporting multidimensional array values
+        if (is_array($this->requestData)) {
+            $out = [];
+            foreach ($this->requestData as $var => $dat) {
+                $out[$var] = is_array($dat)
+                    ? http_build_query($dat, '', $this->argumentSeparator)
+                    : $dat;
             }
-            else {
-                $delimiter = strpos($singleHeader, ' ');
-                if ($delimiter !== false) {
-                    $key = substr($singleHeader, 0, $delimiter);
-                    $val = substr($singleHeader, $delimiter + 1);
-                    $headers[$key] = $val;
-                }
-            }
+            return $out;
         }
-        return $headers;
+
+        return $this->requestData;
     }
 
     /**
-     * Add a data to the request.
-     * @param string $value
-     * @return self
+     * data added to the request
      */
-    public function data($key, $value = null)
+    public function data($key, $value = null): Http
     {
         if (is_array($key)) {
             foreach ($key as $_key => $_value) {
@@ -412,15 +405,25 @@ class Http
         }
 
         $this->requestData[$key] = $value;
+
         return $this;
     }
 
     /**
-     * Add a header to the request.
-     * @param string $value
-     * @return self
+     * dataFile added to the request
      */
-    public function header($key, $value = null)
+    public function dataFile(string $key, string $filePath): Http
+    {
+        $this->hasFileData = true;
+
+        return $this->data($key, curl_file_create($filePath));
+    }
+
+    /**
+     * header added to the request
+     * @param string $value
+     */
+    public function header($key, $value = null): Http
     {
         if (is_array($key)) {
             foreach ($key as $_key => $_value) {
@@ -430,13 +433,14 @@ class Http
         }
 
         $this->requestHeaders[$key] = $value;
+
         return $this;
     }
 
     /**
-     * Sets a proxy to use with this request
+     * proxy to use with this request
      */
-    public function proxy($type, $host, $port, $username = null, $password = null)
+    public function proxy($type, $host, $port, $username = null, $password = null): Http
     {
         if ($type === 'http') {
             $this->setOption(CURLOPT_PROXYTYPE, CURLPROXY_HTTP);
@@ -458,12 +462,11 @@ class Http
     }
 
     /**
-     * Adds authentication to the comms.
+     * auth adds authentication to the request
      * @param string $user
      * @param string $pass
-     * @return self
      */
-    public function auth($user, $pass = null)
+    public function auth($user, $pass = null): Http
     {
         if (strpos($user, ':') !== false && !$pass) {
             list($user, $pass) = explode(':', $user);
@@ -476,18 +479,24 @@ class Http
     }
 
     /**
-     * Disable follow location (redirects)
+     * noRedirect disables follow location (redirects)
      */
-    public function noRedirect()
+    public function noRedirect(): Http
     {
-        $this->setOption(CURLOPT_FOLLOWLOCATION, false);
+        if (defined('CURLOPT_FOLLOWLOCATION') && !ini_get('open_basedir')) {
+            $this->setOption(CURLOPT_FOLLOWLOCATION, false);
+        }
+        else {
+            $this->maxRedirects = 0;
+        }
+
         return $this;
     }
 
     /**
-     * Enable SSL verification
+     * verifySSL enabled for the request
      */
-    public function verifySSL()
+    public function verifySSL(): Http
     {
         $this->setOption(CURLOPT_SSL_VERIFYPEER, true);
         $this->setOption(CURLOPT_SSL_VERIFYHOST, true);
@@ -495,11 +504,10 @@ class Http
     }
 
     /**
-     * Sets the request timeout.
+     * timeout for the request
      * @param string $timeout
-     * @return self
      */
-    public function timeout($timeout)
+    public function timeout($timeout): Http
     {
         $this->setOption(CURLOPT_CONNECTTIMEOUT, $timeout);
         $this->setOption(CURLOPT_TIMEOUT, $timeout);
@@ -507,12 +515,11 @@ class Http
     }
 
     /**
-     * Write the response to a file
+     * toFile write the response to a file
      * @param  string $path   Path to file
      * @param  string $filter Stream filter as listed in stream_get_filters()
-     * @return self
      */
-    public function toFile($path, $filter = null)
+    public function toFile($path, $filter = null): Http
     {
         $this->streamFile = $path;
 
@@ -524,12 +531,24 @@ class Http
     }
 
     /**
-     * Add a single option to the request.
+     * headerCallback sets a custom method for handling headers
+     *
+     *     function header_callback($curl, string $headerLine) {}
+     *
+     */
+    public function headerCallback($callback): Http
+    {
+        $this->headerCallbackFunc = $callback;
+
+        return $this;
+    }
+
+    /**
+     * setOption as a single option to the request
      * @param string $option
      * @param string $value
-     * @return self
      */
-    public function setOption($option, $value = null)
+    public function setOption($option, $value = null): Http
     {
         if (is_array($option)) {
             foreach ($option as $_option => $_value) {
@@ -541,7 +560,8 @@ class Http
         if (is_string($option) && defined($option)) {
             $optionKey = constant($option);
             $this->requestOptions[$optionKey] = $value;
-        } elseif (is_int($option)) {
+        }
+        elseif (is_int($option)) {
             $constants = get_defined_constants(true);
             $curlOptConstants = array_flip(array_filter($constants['curl'], function ($key) {
                 return strpos($key, 'CURLOPT_') === 0;
@@ -549,10 +569,12 @@ class Http
 
             if (isset($curlOptConstants[$option])) {
                 $this->requestOptions[$option] = $value;
-            } else {
+            }
+            else {
                 throw new ApplicationException('$option parameter must be a CURLOPT constant or equivalent integer');
             }
-        } else {
+        }
+        else {
             throw new ApplicationException('$option parameter must be a CURLOPT constant or equivalent integer');
         }
 
@@ -566,5 +588,33 @@ class Http
     public function __toString()
     {
         return (string) $this->body;
+    }
+
+    /**
+     * headerToArray turns a header string into an array
+     */
+    protected function headerToArray(string $header): array
+    {
+        $headers = [];
+        $parts = explode("\r\n", $header);
+
+        foreach ($parts as $singleHeader) {
+            $delimiter = strpos($singleHeader, ': ');
+            if ($delimiter !== false) {
+                $key = substr($singleHeader, 0, $delimiter);
+                $val = substr($singleHeader, $delimiter + 2);
+                $headers[$key] = $val;
+            }
+            else {
+                $delimiter = strpos($singleHeader, ' ');
+                if ($delimiter !== false) {
+                    $key = substr($singleHeader, 0, $delimiter);
+                    $val = substr($singleHeader, $delimiter + 1);
+                    $headers[$key] = $val;
+                }
+            }
+        }
+
+        return $headers;
     }
 }

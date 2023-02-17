@@ -1,18 +1,18 @@
 <?php namespace October\Rain\Html;
 
 use Illuminate\Support\ServiceProvider;
+use Illuminate\Contracts\Support\DeferrableProvider;
 
-class HtmlServiceProvider extends ServiceProvider
+/**
+ * HtmlServiceProvider
+ *
+ * @package october\html
+ * @author Alexey Bobkov, Samuel Georges
+ */
+class HtmlServiceProvider extends ServiceProvider implements DeferrableProvider
 {
-
     /**
-     * @var bool Indicates if loading of the provider is deferred.
-     */
-    protected $defer = true;
-
-    /**
-     * Register the service provider.
-     * @return void
+     * register the service provider.
      */
     public function register()
     {
@@ -58,8 +58,7 @@ class HtmlServiceProvider extends ServiceProvider
     }
 
     /**
-     * Get the services provided by the provider.
-     * @return array
+     * provides gets the services provided by the provider
      */
     public function provides()
     {

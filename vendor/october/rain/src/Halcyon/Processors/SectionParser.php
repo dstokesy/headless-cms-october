@@ -4,7 +4,7 @@ use October\Rain\Parse\Ini;
 use October\Rain\Support\Str;
 
 /**
- * This class parses CMS object files (pages, partials and layouts).
+ * SectionParser parses CMS object files (pages, partials and layouts).
  * Returns the structured file information.
  *
  * @package october\halcyon
@@ -17,23 +17,23 @@ class SectionParser
     const ERROR_INI = '_PARSER_ERROR_INI';
 
     /**
-     * Renders a CMS object as file content.
+     * render a CMS object as file content.
      * @return string
      */
     public static function render($data, $options = [])
     {
         extract(array_merge([
             'wrapCodeInPhpTags' => true,
-            'isCompoundObject'  => true
+            'isCompoundObject' => true
         ], $options));
 
         if (!$isCompoundObject) {
-            return array_get($data, 'content');
+            return $data['content'] ?? '';
         }
 
         $iniParser = new Ini;
-        $code = trim(array_get($data, 'code'));
-        $markup = trim(array_get($data, 'markup'));
+        $code = trim($data['code'] ?? '');
+        $markup = trim($data['markup'] ?? '');
 
         $trim = function (&$values) use (&$trim) {
             foreach ($values as &$value) {
@@ -46,12 +46,11 @@ class SectionParser
             }
         };
 
-        $settings = array_get($data, 'settings', []);
+        $settings = $data['settings'] ?? [];
         $trim($settings);
 
-        /*
-         * Build content
-         */
+        // Build content
+        //
         $content = [];
 
         if ($settings) {
@@ -72,8 +71,8 @@ class SectionParser
             }
         }
 
-        $sections = preg_split('/^'.preg_quote(self::SECTION_SEPARATOR).'\s*$/m', $markup, -1);
-        $content[] = end($sections);
+        // Strip content separator from content as a method of escape
+        $content[] = implode('', self::splitContentSections($markup));
 
         $content = trim(implode(PHP_EOL.self::SECTION_SEPARATOR.PHP_EOL, $content));
 
@@ -81,7 +80,7 @@ class SectionParser
     }
 
     /**
-     * Parses a CMS object file content.
+     * parse a CMS object file content.
      * The expected file format is following:
      * <pre>
      * INI settings section
@@ -92,11 +91,13 @@ class SectionParser
      * </pre>
      * If the content has only 2 sections they are considered as settings and Twig.
      * If there is only a single section, it is considered as Twig.
-     * @param string $content Specifies the file content.
-     * @return array Returns an array with the following indexes: 'settings', 'markup', 'code'.
+     *
+     * Returns an array with the following indexes: 'settings', 'markup', 'code'.
      * The 'markup' and 'code' elements contain strings. The 'settings' element contains the
      * parsed INI file as array. If the content string doesn't contain a section, the corresponding
      * result element has null value.
+     * @param string $content
+     * @return array
      */
     public static function parse($content, $options = [])
     {
@@ -106,16 +107,16 @@ class SectionParser
 
         $result = [
             'settings' => [],
-            'code'     => null,
-            'markup'   => null
+            'code' => null,
+            'markup' => null
         ];
 
-        if (!$isCompoundObject || !strlen($content)) {
+        if (!$isCompoundObject || !strlen((string) $content)) {
             return $result;
         }
 
         $iniParser = new Ini;
-        $sections = preg_split('/^'.preg_quote(self::SECTION_SEPARATOR).'\s*$/m', $content, -1);
+        $sections = self::splitContentSections($content);
         $count = count($sections);
         foreach ($sections as &$section) {
             $section = trim($section);
@@ -133,13 +134,13 @@ class SectionParser
 
             $result['markup'] = $sections[2];
         }
-        elseif ($count == 2) {
+        elseif ($count === 2) {
             $result['settings'] = @$iniParser->parse($sections[0], true)
                 ?: [self::ERROR_INI => $sections[0]];
 
             $result['markup'] = $sections[1];
         }
-        elseif ($count == 1) {
+        elseif ($count === 1) {
             $result['markup'] = $sections[0];
         }
 
@@ -147,15 +148,16 @@ class SectionParser
     }
 
     /**
-     * Same as parse method, except the line number where the respective section
-     * begins is returned.
-     * @param string $content Specifies the file content.
-     * @return array Returns an array with the following indexes: 'settings', 'markup', 'code'.
+     * parseOffset is the same as parse method, except using the line number where the
+     * respective section begins is returned. Returns an array with the following indexes:
+     * 'settings', 'markup', 'code'.
+     * @param string $content
+     * @return array
      */
     public static function parseOffset($content)
     {
         $content = Str::normalizeEol($content);
-        $sections = preg_split('/^'.preg_quote(self::SECTION_SEPARATOR).'\s*$/m', $content, -1);
+        $sections = self::splitContentSections($content);
         $count = count($sections);
 
         $result = [
@@ -169,11 +171,11 @@ class SectionParser
             $result['code'] = self::calculateLinePosition($content);
             $result['markup'] = self::calculateLinePosition($content, 2);
         }
-        elseif ($count == 2) {
+        elseif ($count === 2) {
             $result['settings'] = self::adjustLinePosition($content);
             $result['markup'] = self::calculateLinePosition($content);
         }
-        elseif ($count == 1) {
+        elseif ($count === 1) {
             $result['markup'] = 1;
         }
 
@@ -181,21 +183,33 @@ class SectionParser
     }
 
     /**
-     * Returns the line number of a found instance of CMS object section separator (==).
-     * @param string $content Object content
-     * @param int $instance Which instance to look for
-     * @return int The line number the instance was found.
+     * splitContentSections splits a block of content in to sections,
+     * split by the section separator (==).
+     * @param string $content
+     * @return array
      */
-    private static function calculateLinePosition($content, $instance = 1)
+    protected static function splitContentSections($content)
+    {
+        return preg_split('/^'.preg_quote(self::SECTION_SEPARATOR).'\s*$/m', $content, -1);
+    }
+
+    /**
+     * calculateLinePosition returns the line number of a found instance of CMS object
+     * section separator (==). Returns the line number the instance was found.
+     * @param string $content
+     * @param int $instance
+     * @return int
+     */
+    protected static function calculateLinePosition($content, $instance = 1)
     {
         $count = 0;
         $lines = explode(PHP_EOL, $content);
         foreach ($lines as $number => $line) {
-            if (trim($line) == self::SECTION_SEPARATOR) {
+            if (trim($line) === self::SECTION_SEPARATOR) {
                 $count++;
             }
 
-            if ($count == $instance) {
+            if ($count === $instance) {
                 return static::adjustLinePosition($content, $number);
             }
         }
@@ -204,50 +218,45 @@ class SectionParser
     }
 
     /**
-     * Pushes the starting line number forward since it is not always directly
+     * adjustLinePosition pushes the starting line number forward since it is not always directly
      * after the separator (==). There can be an opening tag or white space in between
-     * where the section really begins.
-     * @param string $content Object content
-     * @param int $startLine The calculated starting line from calculateLinePosition()
-     * @return int The adjusted line number.
+     * where the section really begins. The startLine is the calculated starting line
+     * from calculateLinePosition(). Returns the adjusted line number.
+     * @param string $content
+     * @param int $startLine
+     * @return int
      */
-    private static function adjustLinePosition($content, $startLine = -1)
+    protected static function adjustLinePosition($content, $startLine = -1)
     {
-        // Account for the separator itself.
+        // Account for the separator itself
         $startLine++;
 
         $lines = array_slice(explode(PHP_EOL, $content), $startLine);
         foreach ($lines as $line) {
             $line = trim($line);
 
-            /*
-             * Empty line
-             */
-            if ($line == '') {
+            // Empty line
+            if ($line === '') {
                 $startLine++;
                 continue;
             }
 
-            /*
-             * PHP line
-             */
-            if ($line == '<?php' || $line == '<?') {
+            // PHP line
+            if ($line === '<?php' || $line === '<?') {
                 $startLine++;
                 continue;
             }
 
-            /*
-             * PHP namespaced line (use x;) {
-             * Don't increase the line count, it will be rewritten by Cms\Classes\CodeParser
-             */
-            if (preg_match_all('/(use\s+[a-z0-9_\\\\]+;\n?)/mi', $line) == 1) {
+            // PHP namespaced line (use x;) {
+            // Don't increase the line count, it will be rewritten by Cms\Classes\CodeParser
+            if (preg_match_all('/(use\s+[a-z0-9_\\\\]+;\n?)/mi', $line) === 1) {
                 continue;
             }
 
             break;
         }
 
-        // Line 0 does not exist.
+        // Line 0 does not exist
         return ++$startLine;
     }
 }

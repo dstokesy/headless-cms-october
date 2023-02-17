@@ -2,12 +2,13 @@
 
 use Illuminate\Support\ServiceProvider;
 
+/**
+ * ExecutionContextProvider sets the execution context globally
+ */
 class ExecutionContextProvider extends ServiceProvider
 {
     /**
-     * Register the service provider.
-     *
-     * @return void
+     * register the service provider.
      */
     public function register()
     {
@@ -15,26 +16,25 @@ class ExecutionContextProvider extends ServiceProvider
 
             $requestPath = $this->normalizeUrl($app['request']->path());
 
-            $backendUri = $this->normalizeUrl($app['config']->get('cms.backendUri', 'backend'));
+            $backendUri = $this->normalizeUrl($app['config']->get('backend.uri', 'backend'));
 
             if (starts_with($requestPath, $backendUri)) {
-                return 'back-end';
+                return 'backend';
             }
-            else {
-                return 'front-end';
-            }
+
+            return 'frontend';
         });
     }
 
     /**
-     * Adds leading slash from a URL.
+     * normalizeUrl adds leading slash from a URL.
      *
      * @param string $url URL to normalize.
      * @return string Returns normalized URL.
      */
     protected function normalizeUrl($url)
     {
-        if (substr($url, 0, 1) != '/') {
+        if (substr($url, 0, 1) !== '/') {
             $url = '/'.$url;
         }
 

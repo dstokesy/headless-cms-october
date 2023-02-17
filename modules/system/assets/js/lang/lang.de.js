@@ -1,12 +1,19 @@
 /*
  * This file has been compiled from: /modules/system/lang/de/client.php
  */
-if ($.oc === undefined) $.oc = {}
-if ($.oc.langMessages === undefined) $.oc.langMessages = {}
-$.oc.langMessages['de'] = $.extend(
-    $.oc.langMessages['de'] || {},
-    {"markdowneditor":{"formatting":"Formatierung","quote":"Zitat","code":"Code","header1":"\u00dcberschrift 1","header2":"\u00dcberschrift 2","header3":"\u00dcberschrift 3","header4":"\u00dcberschrift 4","header5":"\u00dcberschrift 5","header6":"\u00dcberschrift 6","bold":"Fett","italic":"Kursiv","unorderedlist":"Normale Liste","orderedlist":"Nummerierte Liste","video":"Video","image":"Bild","link":"Link","horizontalrule":"Horizontale Linie","fullscreen":"Vollbild","preview":"Vorschau"},"mediamanager":{"insert_link":"Link aus Medienbibliothek","insert_image":"Bild aus Medienbibliothek","insert_video":"Video aus Medienbibliothek","insert_audio":"Audio aus Medienbibliothek","invalid_file_empty_insert":"Bitte Datei ausw\u00e4hlen.","invalid_file_single_insert":"Bitte nur eine Datei w\u00e4hlen.","invalid_image_empty_insert":"Bitte ein Bild ausw\u00e4hlen.","invalid_video_empty_insert":"Bitte ein Video ausw\u00e4hlen.","invalid_audio_empty_insert":"Bitte eine Audiodatei ausw\u00e4hlen."},"alert":{"confirm_button_text":"OK","cancel_button_text":"Abbrechen","widget_remove_confirm":"Remove this widget?"},"datepicker":{"previousMonth":"Vorheriger Monat","nextMonth":"N\u00e4chsten Monat","months":["Januar","Februar","M\u00e4rz","April","Mai","Juni","Juli","August","September","Oktober","November","Dezember"],"weekdays":["Sonntag","Montag","Dienstag","Mittwoch","Donnerstag","Freitag","Samstag"],"weekdaysShort":["So","Mo","Di","Mi","Do","Fr","Sa"]},"colorpicker":{"choose":"Ok"},"filter":{"group":{"all":"all"},"scopes":{"apply_button_text":"Apply","clear_button_text":"Clear"},"dates":{"all":"all","filter_button_text":"Filter","reset_button_text":"Reset","date_placeholder":"Date","after_placeholder":"After","before_placeholder":"Before"},"numbers":{"all":"all","filter_button_text":"Filter","reset_button_text":"Reset","min_placeholder":"Min","max_placeholder":"Max"}},"eventlog":{"show_stacktrace":"Show the stacktrace","hide_stacktrace":"Hide the stacktrace","tabs":{"formatted":"Formatted","raw":"Raw"},"editor":{"title":"Source code editor","description":"Your operating system should be configured to listen to one of these URL schemes.","openWith":"Open with","remember_choice":"Remember selected option for this session","open":"Open","cancel":"Cancel"}}}
+if (!window.oc) {
+    window.oc = {};
+}
+
+if (!window.oc.langMessages) {
+    window.oc.langMessages = {};
+}
+
+window.oc.langMessages['de'] = $.extend(
+    window.oc.langMessages['de'] || {},
+    {"markdowneditor":{"formatting":"Formatierung","quote":"Zitat","code":"Code","header1":"\u00dcberschrift 1","header2":"\u00dcberschrift 2","header3":"\u00dcberschrift 3","header4":"\u00dcberschrift 4","header5":"\u00dcberschrift 5","header6":"\u00dcberschrift 6","bold":"Fett","italic":"Kursiv","unorderedlist":"Normale Liste","orderedlist":"Nummerierte Liste","video":"Video","image":"Bild","link":"Link","horizontalrule":"Horizontale Linie","fullscreen":"Vollbild","preview":"Vorschau"},"mediamanager":{"insert_link":"Link aus Medienbibliothek","insert_image":"Bild aus Medienbibliothek","insert_video":"Video aus Medienbibliothek","insert_audio":"Audio aus Medienbibliothek","invalid_file_empty_insert":"Bitte Datei ausw\u00e4hlen.","invalid_file_single_insert":"Bitte nur eine Datei w\u00e4hlen.","invalid_image_empty_insert":"Bitte ein Bild ausw\u00e4hlen.","invalid_video_empty_insert":"Bitte ein Video ausw\u00e4hlen.","invalid_audio_empty_insert":"Bitte eine Audiodatei ausw\u00e4hlen."},"alert":{"error":"Error","confirm":"Confirm","dismiss":"Dismiss","confirm_button_text":"OK","cancel_button_text":"Abbrechen","widget_remove_confirm":"Remove this widget?"},"datepicker":{"previousMonth":"Vorheriger Monat","nextMonth":"N\u00e4chsten Monat","months":["Januar","Februar","M\u00e4rz","April","Mai","Juni","Juli","August","September","Oktober","November","Dezember"],"weekdays":["Sonntag","Montag","Dienstag","Mittwoch","Donnerstag","Freitag","Samstag"],"weekdaysShort":["So","Mo","Di","Mi","Do","Fr","Sa"]},"colorpicker":{"choose":"Ok"},"filter":{"group":{"all":"all"},"scopes":{"apply_button_text":"Apply","clear_button_text":"Clear"},"dates":{"all":"all","filter_button_text":"Filter","reset_button_text":"Reset","date_placeholder":"Date","after_placeholder":"After","before_placeholder":"Before"},"numbers":{"all":"all","filter_button_text":"Filter","reset_button_text":"Reset","min_placeholder":"Min","max_placeholder":"Max"}},"eventlog":{"show_stacktrace":"Show the stacktrace","hide_stacktrace":"Hide the stacktrace","tabs":{"formatted":"Formatted","raw":"Raw"},"editor":{"title":"Source Code Editor","description":"Your operating system should be configured to listen to one of these URL schemes.","openWith":"Open with","remember_choice":"Remember selected option for this session","open":"Open","cancel":"Cancel"}},"upload":{"max_files":"You can not upload any more files.","invalid_file_type":"You can't upload files of this type.","file_too_big":"File is too big ({{filesize}}MB). Max filesize: {{maxFilesize}}MB.","response_error":"Server responded with {{statusCode}} code.","remove_file":"Remove file"},"inspector":{"add":"Add","remove":"Remove","key":"Key","value":"Value","ok":"OK","cancel":"Cancel","items":"Items"}}
 );
+
 
 //! moment.js locale configuration v2.22.2
 
@@ -84,3 +91,7 @@ $.oc.langMessages['de'] = $.extend(
 
 })));
 
+
+/*! Select2 4.1.0-rc.0 | https://github.com/select2/select2/blob/master/LICENSE.md */
+
+!function(){if(jQuery&&jQuery.fn&&jQuery.fn.select2&&jQuery.fn.select2.amd)var e=jQuery.fn.select2.amd;e.define("select2/i18n/de",[],function(){return{errorLoading:function(){return"Die Ergebnisse konnten nicht geladen werden."},inputTooLong:function(e){return"Bitte "+(e.input.length-e.maximum)+" Zeichen weniger eingeben"},inputTooShort:function(e){return"Bitte "+(e.minimum-e.input.length)+" Zeichen mehr eingeben"},loadingMore:function(){return"Lade mehr Ergebnisse…"},maximumSelected:function(e){var n="Sie können nur "+e.maximum+" Element";return 1!=e.maximum&&(n+="e"),n+=" auswählen"},noResults:function(){return"Keine Übereinstimmungen gefunden"},searching:function(){return"Suche…"},removeAllItems:function(){return"Entferne alle Elemente"}}}),e.define,e.require}();

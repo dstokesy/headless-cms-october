@@ -1,7 +1,7 @@
 <?php namespace October\Rain\Router;
 
 /**
- * Methods that may be useful for processing routing activity
+ * Helper methods that may be useful for processing routing activity
  *
  * @package october\router
  * @author Alexey Bobkov, Samuel Georges
@@ -9,18 +9,45 @@
 class Helper
 {
     /**
-     * Adds leading slash and removes trailing slash from the URL.
+     * validateUrl checks if the URL pattern provided is valid for parsing
+     */
+    public static function validateUrl(string $url): bool
+    {
+        if ($url && $url[0] !==  '/') {
+            return false;
+        }
+
+        $segments = static::segmentizeUrl($url);
+
+        foreach ($segments as $segment) {
+            // Remove regex portion
+            $cleanSegment = explode('|', $segment)[0];
+
+            // Validate segment
+            if (!preg_match(
+                '/^[a-z0-9\/\:_\-\*\[\]\+\?\.\^\\\$]*$/i',
+                $cleanSegment
+            )) {
+                return false;
+            }
+        }
+
+        return true;
+    }
+
+    /**
+     * normalizeUrl adds leading slash and removes trailing slash from the URL.
      *
      * @param string $url URL to normalize.
      * @return string Returns normalized URL.
      */
     public static function normalizeUrl($url)
     {
-        if (substr($url, 0, 1) != '/') {
+        if (substr($url, 0, 1) !== '/') {
             $url = '/'.$url;
         }
 
-        if (substr($url, -1) == '/') {
+        if (substr($url, -1) === '/') {
             $url = substr($url, 0, -1);
         }
 
@@ -32,15 +59,24 @@ class Helper
     }
 
     /**
-     * Splits an URL by segments separated by the slash symbol.
+     * segmentizeUrl splits a URL by segments separated by the slash symbol
+     * and returns the URL segments. Using a pattern includes regex support
+     * in the URL.
      *
-     * @param string $url URL to segmentize.
-     * @return array Returns the URL segments.
+     * @param string $url
+     * @param bool $pattern
+     * @return array
      */
-    public static function segmentizeUrl($url)
+    public static function segmentizeUrl($url, $pattern = true)
     {
         $url = self::normalizeUrl($url);
-        $segments = explode('/', $url);
+
+        if ($pattern) {
+            $segments = preg_split("#(?<!\\\)/#", $url);
+        }
+        else {
+            $segments = explode('/', $url);
+        }
 
         $result = [];
         foreach ($segments as $segment) {
@@ -53,7 +89,7 @@ class Helper
     }
 
     /**
-     * Rebuilds a URL from an array of segments.
+     * rebuildUrl from an array of segments.
      *
      * @param array $urlArray Array the URL segments.
      * @return string Returns rebuilt URL.
@@ -71,7 +107,8 @@ class Helper
     }
 
     /**
-     * Replaces :column_name with it's object value. Example: /some/link/:id/:name -> /some/link/1/Joe
+     * parseValues replaces :column_name with it's object value.
+     * Example: /some/link/:id/:name -> /some/link/1/Joe
      *
      * @param stdObject $object Object containing the data
      * @param array $columns Expected key names to parse
@@ -84,7 +121,6 @@ class Helper
             $object = (object) $object;
         }
 
-        $defaultColumns = ['id'];
         foreach ($columns as $column) {
             if (
                 !isset($object->{$column}) ||
@@ -101,7 +137,8 @@ class Helper
     }
 
     /**
-     * Replaces :column_name with object value without requiring a list of names. Example: /some/link/:id/:name -> /some/link/1/Joe
+     * replaceParameters replaces :column_name with object value without requiring a
+     * list of names. Example: /some/link/:id/:name -> /some/link/1/Joe
      *
      * @param stdObject $object Object containing the data
      * @param string $string URL template
@@ -117,17 +154,33 @@ class Helper
     }
 
     /**
-     * Checks whether an URL pattern segment is a wildcard.
+     * segmentIsWildcard checks whether an URL pattern segment is a wildcard.
      * @param string $segment The segment definition.
      * @return boolean Returns boolean true if the segment is a wildcard. Returns false otherwise.
      */
     public static function segmentIsWildcard($segment)
     {
-        return mb_strpos($segment, ':') === 0 && mb_substr($segment, -1) === '*';
+        $name = mb_substr($segment, 1);
+
+        $wildMarkerPos = mb_strpos($name, '*');
+        if ($wildMarkerPos === false) {
+            return false;
+        }
+
+        $regexMarkerPos = mb_strpos($name, '|');
+        if ($regexMarkerPos === false) {
+            return true;
+        }
+
+        if ($wildMarkerPos !== false && $regexMarkerPos !== false) {
+            return $wildMarkerPos < $regexMarkerPos;
+        }
+
+        return true;
     }
 
     /**
-     * Checks whether an URL pattern segment is optional.
+     * segmentIsOptional checks whether an URL pattern segment is optional.
      * @param string $segment The segment definition.
      * @return boolean Returns boolean true if the segment is optional. Returns false otherwise.
      */
@@ -153,47 +206,34 @@ class Helper
     }
 
     /**
-     * Extracts the parameter name from a URL pattern segment definition.
-     * @param string $segment The segment definition.
-     * @return string Returns the segment name.
+     * getParameterName extracts the parameter name from a URL pattern segment definition.
+     * @param string $segment
+     * @return string
      */
     public static function getParameterName($segment)
     {
         $name = mb_substr($segment, 1);
 
-        $optMarkerPos = mb_strpos($name, '?');
-        $wildMarkerPos = mb_strpos($name, '*');
         $regexMarkerPos = mb_strpos($name, '|');
-
-        if ($wildMarkerPos !== false) {
-            if ($optMarkerPos !== false) {
-                return mb_substr($name, 0, $optMarkerPos);
-            }
-
-            return mb_substr($name, 0, $wildMarkerPos);
-        }
-
-        if ($optMarkerPos !== false && $regexMarkerPos !== false) {
-            if ($optMarkerPos < $regexMarkerPos) {
-                return mb_substr($name, 0, $optMarkerPos);
-            }
-
-            return mb_substr($name, 0, $regexMarkerPos);
-        }
-
-        if ($optMarkerPos !== false) {
-            return mb_substr($name, 0, $optMarkerPos);
-        }
-
         if ($regexMarkerPos !== false) {
-            return mb_substr($name, 0, $regexMarkerPos);
+            $name = mb_substr($name, 0, $regexMarkerPos);
+        }
+
+        $optMarkerPos = mb_strpos($name, '?');
+        if ($optMarkerPos !== false) {
+            $name = mb_substr($name, 0, $optMarkerPos);
+        }
+
+        $wildMarkerPos = mb_strpos($name, '*');
+        if ($wildMarkerPos !== false) {
+            $name = mb_substr($name, 0, $wildMarkerPos);
         }
 
         return $name;
     }
 
     /**
-     * Extracts the regular expression from a URL pattern segment definition.
+     * getSegmentRegExp extracts the regular expression from a URL pattern segment definition.
      * @param string $segment The segment definition.
      * @return string Returns the regular expression string or false if the expression is not defined.
      */
@@ -212,7 +252,8 @@ class Helper
     }
 
     /**
-     * Extracts the default parameter value from a URL pattern segment definition.
+     * getSegmentDefaultValue extracts the default parameter value from a URL pattern
+     * segment definition.
      * @param string $segment The segment definition.
      * @return string Returns the default value if it is provided. Returns false otherwise.
      */

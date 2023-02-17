@@ -9,40 +9,34 @@ use Symfony\Component\Console\Input\InputOption;
 use Exception;
 use Twig;
 
+/**
+ * GeneratorCommand
+ * @deprecated use GeneratorCommandBase
+ */
 abstract class GeneratorCommand extends Command
 {
     /**
-     * The filesystem instance.
-     *
-     * @var \October\Rain\Filesystem\Filesystem
+     * @var \October\Rain\Filesystem\Filesystem files is the filesystem instance
      */
     protected $files;
 
     /**
-     * The type of class being generated.
-     *
-     * @var string
+     * @var string type of class being generated
      */
     protected $type;
 
     /**
-     * A mapping of stub to generated file.
-     *
-     * @var array
+     * @var array stubs is a mapping of stub to generated file
      */
     protected $stubs = [];
 
     /**
-     * An array of variables to use in stubs.
-     *
-     * @var array
+     * @var array vars to use in stubs
      */
     protected $vars = [];
 
     /**
-     * Create a new controller creator command instance.
-     *
-     * @return void
+     * __construct creates a new controller creator command instance
      */
     public function __construct()
     {
@@ -52,9 +46,7 @@ abstract class GeneratorCommand extends Command
     }
 
     /**
-     * Execute the console command.
-     *
-     * @return bool|null
+     * handle executes the console command
      */
     public function handle()
     {
@@ -66,16 +58,12 @@ abstract class GeneratorCommand extends Command
     }
 
     /**
-     * Prepare variables for stubs.
-     *
-     * return @array
+     * prepareVars prepares variables for stubs
      */
     abstract protected function prepareVars();
 
     /**
-     * Make all stubs.
-     *
-     * @return void
+     * makeStubs makes all stubs
      */
     public function makeStubs()
     {
@@ -87,11 +75,9 @@ abstract class GeneratorCommand extends Command
     }
 
     /**
-     * Make a single stub.
-     *
-     * @param string $stubName The source filename for the stub.
+     * makeStub makes a single stub
      */
-    public function makeStub($stubName)
+    public function makeStub(string $stubName)
     {
         if (!isset($this->stubs[$stubName])) {
             return;
@@ -120,26 +106,20 @@ abstract class GeneratorCommand extends Command
     }
 
     /**
-     * Build the directory for the class if necessary.
-     *
-     * @param  string  $path
-     * @return string
+     * makeDirectory builds the directory for the class if necessary
      */
-    protected function makeDirectory($path)
+    protected function makeDirectory(string $path)
     {
-        if (! $this->files->isDirectory(dirname($path))) {
-            $this->files->makeDirectory(dirname($path), 0777, true, true);
+        if (!$this->files->isDirectory(dirname($path))) {
+            $this->files->makeDirectory(dirname($path), 0755, true, true);
         }
     }
 
     /**
-     * Converts all variables to available modifier and case formats.
+     * processVars converts all variables to available modifier and case formats
      * Syntax is CASE_MODIFIER_KEY, eg: lower_plural_xxx
-     *
-     * @param array $vars The collection of original variables
-     * @return array A collection of variables with modifiers added
      */
-    protected function processVars($vars)
+    protected function processVars(array $vars): array
     {
         $cases = ['upper', 'lower', 'snake', 'studly', 'camel', 'title'];
         $modifiers = ['plural', 'singular', 'title'];
@@ -171,13 +151,9 @@ abstract class GeneratorCommand extends Command
     }
 
     /**
-     * Internal helper that handles modify a string, with extra logic.
-     *
-     * @param string|array $type
-     * @param string $string
-     * @return string
+     * modifyString is an internal helper that handles modify a string, with extra logic
      */
-    protected function modifyString($type, $string)
+    protected function modifyString($type, string $string): string
     {
         if (is_array($type)) {
             foreach ($type as $_type) {
@@ -187,7 +163,7 @@ abstract class GeneratorCommand extends Command
             return $string;
         }
 
-        if ($type == 'title') {
+        if ($type === 'title') {
             $string = str_replace('_', ' ', Str::snake($string));
         }
 
@@ -195,11 +171,9 @@ abstract class GeneratorCommand extends Command
     }
 
     /**
-     * Get the plugin path from the input.
-     *
-     * @return string
+     * getDestinationPath gets the plugin path from the input
      */
-    protected function getDestinationPath()
+    protected function getDestinationPath(): string
     {
         $plugin = $this->getPluginInput();
 
@@ -211,11 +185,9 @@ abstract class GeneratorCommand extends Command
     }
 
     /**
-     * Get the source file path.
-     *
-     * @return string
+     * getSourcePath gets the source file path
      */
-    protected function getSourcePath()
+    protected function getSourcePath(): string
     {
         $className = get_class($this);
         $class = new ReflectionClass($className);
@@ -224,19 +196,15 @@ abstract class GeneratorCommand extends Command
     }
 
     /**
-     * Get the desired plugin name from the input.
-     *
-     * @return string
+     * getPluginInput gets the desired plugin name from the input
      */
-    protected function getPluginInput()
+    protected function getPluginInput(): string
     {
         return $this->argument('plugin');
     }
 
     /**
-     * Get the console command arguments.
-     *
-     * @return array
+     * getArguments get the console command arguments
      */
     protected function getArguments()
     {
@@ -246,9 +214,7 @@ abstract class GeneratorCommand extends Command
     }
 
     /**
-     * Get the console command options.
-     *
-     * @return array
+     * getOptions get the console command options
      */
     protected function getOptions()
     {

@@ -2,9 +2,16 @@
 
 use October\Rain\Parse\Syntax\Parser;
 
+class DropDownOptions
+{
+    public static function get()
+    {
+        return ['foo' => 'bar', 'bar' => 'foo'];
+    }
+}
+
 class SyntaxParserTest extends TestCase
 {
-
     public function testParseToTwig()
     {
         $content = '<h1>{text name="websiteName" label="Website Name"}Our wonderful website{/text}</h1>';
@@ -16,12 +23,20 @@ class SyntaxParserTest extends TestCase
         $this->assertEquals('<h1>{{ joker.websiteName }}</h1>', $result);
     }
 
+    public function testParseVariableToTwig()
+    {
+        $content = '<h1>{variable type="text" name="websiteName" label="Website Name"}Our wonderful website{/variable}</h1>';
+
+        $result = Parser::parse($content)->toTwig();
+        $this->assertEquals('<h1></h1>', $result);
+    }
+
     public function testParseRepeaterToTwig()
     {
         $content = '';
         $content .= '{repeater name="websiteRepeater" label="Website Repeater"}'.PHP_EOL;
-            $content .= '<h1>{text name="websiteName" label="Website Name"}Our wonderful website{/text}</h1>'.PHP_EOL;
-            $content .= '{textarea name="websiteContent" label="Website Content"}Here are all the reasons we like our website{/textarea}'.PHP_EOL;
+        $content .= '<h1>{text name="websiteName" label="Website Name"}Our wonderful website{/text}</h1>'.PHP_EOL;
+        $content .= '{textarea name="websiteContent" label="Website Content"}Here are all the reasons we like our website{/textarea}'.PHP_EOL;
         $content .= '{/repeater}'.PHP_EOL;
 
         $result = Parser::parse($content)->toTwig();
@@ -56,8 +71,8 @@ class SyntaxParserTest extends TestCase
     {
         $content = '';
         $content .= '{repeater name="websiteRepeater" label="Website Repeater"}'.PHP_EOL;
-            $content .= '<h1>{text name="websiteName" label="Website Name"}Our wonderful website{/text}</h1>'.PHP_EOL;
-            $content .= '{textarea name="websiteContent" label="Website Content"}Here are all the reasons we like our website{/textarea}'.PHP_EOL;
+        $content .= '<h1>{text name="websiteName" label="Website Name"}Our wonderful website{/text}</h1>'.PHP_EOL;
+        $content .= '{textarea name="websiteContent" label="Website Content"}Here are all the reasons we like our website{/textarea}'.PHP_EOL;
         $content .= '{/repeater}'.PHP_EOL;
 
         $result = Parser::parse($content)->toView();
@@ -107,8 +122,8 @@ class SyntaxParserTest extends TestCase
     {
         $content = '';
         $content .= '{repeater name="websiteRepeater" label="Website Repeater"}'.PHP_EOL;
-            $content .= '<h1>{text name="websiteName" label="Website Name"}Our wonderful website{/text}</h1>'.PHP_EOL;
-            $content .= '{textarea name="websiteContent" label="Website Content"}Here are all the reasons we like our website{/textarea}'.PHP_EOL;
+        $content .= '<h1>{text name="websiteName" label="Website Name"}Our wonderful website{/text}</h1>'.PHP_EOL;
+        $content .= '{textarea name="websiteContent" label="Website Content"}Here are all the reasons we like our website{/textarea}'.PHP_EOL;
         $content .= '{/repeater}'.PHP_EOL;
         $syntax = Parser::parse($content);
 
@@ -174,5 +189,60 @@ class SyntaxParserTest extends TestCase
         $this->assertEquals('text', $result['websiteName']['type']);
         $this->assertEquals('Our wonderful website', $result['websiteName']['default']);
         $this->assertEquals('Website Name', $result['websiteName']['label']);
+    }
+
+    public function testParseDropDownVariableToEdit()
+    {
+        $content = '{variable type="dropdown" name="optionList" label="Option List" options="foo:bar|bar:foo"}'
+            . '{/variable}';
+
+        $result = Parser::parse($content)->toEditor();
+
+        $this->assertArrayHasKey('optionList', $result);
+        $this->assertArrayHasKey('type', $result['optionList']);
+        $this->assertArrayHasKey('default', $result['optionList']);
+        $this->assertArrayHasKey('label', $result['optionList']);
+        $this->assertArrayHasKey('options', $result['optionList']);
+        $this->assertEquals('dropdown', $result['optionList']['type']);
+        $this->assertArrayHasKey('foo', $result['optionList']['options']);
+        $this->assertEquals('bar', $result['optionList']['options']['foo']);
+        $this->assertArrayHasKey('bar', $result['optionList']['options']);
+        $this->assertEquals('foo', $result['optionList']['options']['bar']);
+
+        $content = '{variable type="dropdown" name="optionList" label="Option List" options="\DropDownOptions::get"}'
+            . '{/variable}';
+
+        $result = Parser::parse($content)->toEditor();
+
+        $this->assertArrayHasKey('optionList', $result);
+        $this->assertArrayHasKey('type', $result['optionList']);
+        $this->assertArrayHasKey('default', $result['optionList']);
+        $this->assertArrayHasKey('label', $result['optionList']);
+        $this->assertArrayHasKey('options', $result['optionList']);
+        $this->assertEquals('dropdown', $result['optionList']['type']);
+        $this->assertArrayHasKey('foo', $result['optionList']['options']);
+        $this->assertEquals('bar', $result['optionList']['options']['foo']);
+        $this->assertArrayHasKey('bar', $result['optionList']['options']);
+        $this->assertEquals('foo', $result['optionList']['options']['bar']);
+    }
+
+    public function testParseDropDownVariableToEditInvalidKeyException()
+    {
+        $this->expectException(Exception::class);
+
+        $content = '{variable type="dropdown" name="optionList" label="Option List" options="^:one|*:two"}'
+            . '{/variable}';
+
+        Parser::parse($content)->toEditor();
+    }
+
+    public function testParseDropDownVariableToEditInvalidStaticMethodException()
+    {
+        $this->expectException(Exception::class);
+
+        $content = '{variable type="dropdown" name="optionList" label="Option List" options="\Invalid\Class\Path::get"}'
+            . '{/variable}';
+
+        Parser::parse($content)->toEditor();
     }
 }

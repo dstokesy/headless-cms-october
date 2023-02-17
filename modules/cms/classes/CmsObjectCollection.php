@@ -3,7 +3,7 @@
 use October\Rain\Support\Collection as CollectionBase;
 
 /**
- * This class represents a collection of Cms Objects.
+ * CmsObjectCollection represents a collection of Cms Objects
  *
  * @package october\cms
  * @author Alexey Bobkov, Samuel Georges
@@ -11,9 +11,9 @@ use October\Rain\Support\Collection as CollectionBase;
 class CmsObjectCollection extends CollectionBase
 {
     /**
-     * Returns objects that use the supplied component.
+     * withComponent returns objects that use the supplied component
      * @param  string|array $components
-     * @param null|callback $callback
+     * @param null|callable $callback
      * @return static
      */
     public function withComponent($components, $callback = null)
@@ -36,13 +36,13 @@ class CmsObjectCollection extends CollectionBase
     }
 
     /**
-     * Returns objects whose properties match the supplied value.
+     * where objects whose properties match the supplied value.
      * @param string $property
      * @param string $value
      * @param bool $strict
      * @return static
      */
-    public function where($property, $value, $strict = true)
+    public function where($property, $value = null, $strict = null)
     {
         return $this->filter(function ($object) use ($property, $value, $strict) {
 
@@ -57,7 +57,7 @@ class CmsObjectCollection extends CollectionBase
     }
 
     /**
-     * Returns objects whose component properties match the supplied value.
+     * whereComponent objects whose component properties match the supplied value.
      * @param mixed $components
      * @param string $property
      * @param string $value

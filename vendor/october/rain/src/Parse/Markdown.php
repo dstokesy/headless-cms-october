@@ -1,7 +1,8 @@
 <?php namespace October\Rain\Parse;
 
+use Html;
 use Event;
-use October\Rain\Parse\Parsedown\Parsedown;
+use October\Rain\Parse\Parsedown\ParsedownExtra;
 
 /**
  * Markdown helper class.
@@ -9,7 +10,7 @@ use October\Rain\Parse\Parsedown\Parsedown;
  * Calling Markdown::parse($text) returns the HTML corresponding
  * to the Markdown input in $text.
  *
- * OctoberCMS uses ParsedownExtra as its Markdown parser,
+ * October CMS uses ParsedownExtra as its Markdown parser,
  * but fires markdown.beforeParse and markdown.parse events
  * allowing hooks into the default parsing,
  *
@@ -32,26 +33,36 @@ class Markdown
     use \October\Rain\Support\Traits\Emitter;
 
     /**
-     * @var October\Rain\Parse\Parsedown\Parsedown Parsedown instance
+     * @var ParsedownExtra parser is the parsedown instance
      */
     protected $parser;
 
     /**
-     * Parse text using Markdown and Markdown-Extra
-     * @param  string $text Markdown text to parse
-     * @return string       Resulting HTML
+     * parse text using Markdown and Markdown-Extra
      */
-    public function parse($text)
+    public function parse($text): string
     {
         return $this->parseInternal($text);
     }
 
     /**
-     * Enables safe mode
-     * @param  string $text Markdown text to parse
-     * @return string       Resulting HTML
+     * parseClean enables safe mode where the resulting HTML is cleaned
+     * using a sanitizer
      */
-    public function parseClean($text)
+    public function parseClean($text): string
+    {
+        $result = Html::clean($this->parse($text));
+
+        $this->parser = null;
+
+        return $result;
+    }
+
+    /**
+     * parseSafe is stricter than parse clean allowing no HTML at all
+     * except for basic protocols such as https://, ftps://, mailto:, etc.
+     */
+    public function parseSafe($text): string
     {
         $this->getParser()->setSafeMode(true);
 
@@ -63,13 +74,11 @@ class Markdown
     }
 
     /**
-     * Disables code blocks caused by indentation.
-     * @param  string $text Markdown text to parse
-     * @return string       Resulting HTML
+     * parseIndent disables code blocks caused by indentation
      */
-    public function parseSafe($text)
+    public function parseIndent($text): string
     {
-        $this->getParser()->setUnmarkedBlockTypes([]);
+        $this->getParser()->setIndentMode(false);
 
         $result = $this->parse($text);
 
@@ -79,19 +88,17 @@ class Markdown
     }
 
     /**
-     * Parse a single line
-     * @param  string $text Markdown text to parse
-     * @return string       Resulting HTML
+     * parseLine parses a single line
      */
-    public function parseLine($text)
+    public function parseLine($text): string
     {
         return $this->parseInternal($text, 'line');
     }
 
     /**
-     * Internal method for parsing
+     * parseInternal is an internal method for parsing
      */
-    protected function parseInternal($text, $method = 'text')
+    protected function parseInternal($text, $method = 'text'): string
     {
         $data = new MarkdownData($text);
 
@@ -112,10 +119,13 @@ class Markdown
         return $data->text;
     }
 
-    protected function getParser()
+    /**
+     * getParser returns an instance of the parser
+     */
+    protected function getParser(): ParsedownExtra
     {
         if ($this->parser === null) {
-            $this->parser = new Parsedown;
+            $this->parser = new ParsedownExtra;
         }
 
         return $this->parser;

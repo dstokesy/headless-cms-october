@@ -2,17 +2,23 @@
 
 use October\Rain\Database\Models\DeferredBinding as DeferredBindingModel;
 
+/**
+ * DeferredBinding trait
+ *
+ * @package october\database
+ * @author Alexey Bobkov, Samuel Georges
+ */
 trait DeferredBinding
 {
     /**
-     * @var string A unique session key used for deferred binding.
+     * @var string sessionKey is A unique session key used for deferred binding
      */
     public $sessionKey;
 
     /**
-     * Returns true if a relation exists and can be deferred.
+     * isDeferrable returns true if a relation exists and can be deferred
      */
-    public function isDeferrable($relationName)
+    public function isDeferrable($relationName): bool
     {
         if (!$this->hasRelation($relationName)) {
             return false;
@@ -25,9 +31,9 @@ trait DeferredBinding
     }
 
     /**
-     * Bind a deferred relationship to the supplied record.
+     * bindDeferred binds a deferred relationship to the supplied record
      */
-    public function bindDeferred($relation, $record, $sessionKey)
+    public function bindDeferred($relation, $record, $sessionKey, $pivotData = []): DeferredBindingModel
     {
         $binding = new DeferredBindingModel;
         $binding->setConnection($this->getConnectionName());
@@ -35,16 +41,34 @@ trait DeferredBinding
         $binding->master_field = $relation;
         $binding->slave_type = get_class($record);
         $binding->slave_id = $record->getKey();
+        $binding->pivot_data = $pivotData;
         $binding->session_key = $sessionKey;
         $binding->is_bind = true;
+
+        /**
+         * @event deferredBinding.newBindInstance
+         * Called after the DeferredBindingModel is initialized for binding
+         *
+         * Example usage:
+         *
+         *     $model->bindEvent('deferredBinding.newBindInstance', function ((\Model) $model) {
+         *         $model->some_attribute = true;
+         *     });
+         *
+         */
+        if ($event = $this->fireEvent('deferredBinding.newBindInstance', $binding, true)) {
+            $binding = $event;
+        }
+
         $binding->save();
+
         return $binding;
     }
 
     /**
-     * Unbind a deferred relationship to the supplied record.
+     * unbindDeferred unbinds a deferred relationship to the supplied record
      */
-    public function unbindDeferred($relation, $record, $sessionKey)
+    public function unbindDeferred($relation, $record, $sessionKey): DeferredBindingModel
     {
         $binding = new DeferredBindingModel;
         $binding->setConnection($this->getConnectionName());
@@ -54,29 +78,45 @@ trait DeferredBinding
         $binding->slave_id = $record->getKey();
         $binding->session_key = $sessionKey;
         $binding->is_bind = false;
+
+        /**
+         * @event deferredBinding.newUnbindInstance
+         * Called after the DeferredBindingModel is initialized for unbinding
+         *
+         * Example usage:
+         *
+         *     $model->bindEvent('deferredBinding.newUnbindInstance', function ((\Model) $model) {
+         *         $model->some_attribute = true;
+         *     });
+         *
+         */
+        if ($event = $this->fireEvent('deferredBinding.newUnbindInstance', $binding, true)) {
+            $binding = $event;
+        }
+
         $binding->save();
+
         return $binding;
     }
 
     /**
-     * Cancel all deferred bindings to this model.
+     * cancelDeferred cancels all deferred bindings to this model
      */
-    public function cancelDeferred($sessionKey)
+    public function cancelDeferred($sessionKey): void
     {
         DeferredBindingModel::cancelDeferredActions(get_class($this), $sessionKey);
     }
 
     /**
-     * Commit all deferred bindings to this model.
+     * commitDeferred commits all deferred bindings to this model
      */
     public function commitDeferred($sessionKey)
     {
         $this->commitDeferredOfType($sessionKey);
-        DeferredBindingModel::flushDuplicateCache();
     }
 
     /**
-     * Internally used method to commit all deferred bindings before saving.
+     * commitDeferredBefore is used internally to commit all deferred bindings before saving.
      * It is a rare need to have to call this, since it only applies to the
      * "belongs to" relationship which generally does not need deferring.
      */
@@ -86,16 +126,15 @@ trait DeferredBinding
     }
 
     /**
-     * Internally used method to commit all deferred bindings after saving.
+     * commitDeferredAfter is used internally to commit all deferred bindings after saving
      */
     protected function commitDeferredAfter($sessionKey)
     {
         $this->commitDeferredOfType($sessionKey, null, 'belongsTo');
-        DeferredBindingModel::flushDuplicateCache();
     }
 
     /**
-     * Internal method for committing deferred relations.
+     * commitDeferredOfType is an internal method for committing deferred relations
      */
     protected function commitDeferredOfType($sessionKey, $include = null, $exclude = null)
     {
@@ -132,9 +171,12 @@ trait DeferredBinding
              * Find the slave model
              */
             $slaveClass = $binding->slave_type;
-            $slaveModel = new $slaveClass;
-            $slaveModel = $slaveModel->find($binding->slave_id);
+            $slaveModel = $this->makeRelation($relationName);
+            if (!is_a($slaveModel, $slaveClass)) {
+                continue;
+            }
 
+            $slaveModel = $slaveModel->find($binding->slave_id);
             if (!$slaveModel) {
                 continue;
             }
@@ -144,9 +186,13 @@ trait DeferredBinding
              * deferred bindings it might have and delete the binding action
              */
             $relationObj = $this->$relationName();
-
             if ($binding->is_bind) {
-                $relationObj->add($slaveModel);
+                if (in_array($relationType, ['belongsToMany', 'morphToMany', 'morphedByMany'])) {
+                    $relationObj->add($slaveModel, null, (array) $binding->pivot_data);
+                }
+                else {
+                    $relationObj->add($slaveModel);
+                }
             }
             else {
                 $relationObj->remove($slaveModel);
@@ -157,7 +203,7 @@ trait DeferredBinding
     }
 
     /**
-     * Returns any outstanding binding records for this model.
+     * getDeferredBindingRecords returns any outstanding binding records for this model
      * @return \October\Rain\Database\Collection
      */
     protected function getDeferredBindingRecords($sessionKey)
@@ -174,7 +220,7 @@ trait DeferredBinding
     }
 
     /**
-     * Returns all possible relation types that can be deferred.
+     * getDeferrableRelationTypes returns all possible relation types that can be deferred
      * @return array
      */
     protected function getDeferrableRelationTypes()

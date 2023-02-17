@@ -4,18 +4,20 @@ use Str;
 use Lang;
 use Config;
 use October\Rain\Extension\Extendable;
+use October\Contracts\Twig\CallsAnyMethod;
 use BadMethodCallException;
 
 /**
- * Component base class
+ * ComponentBase class
  *
  * @package october\cms
  * @author Alexey Bobkov, Samuel Georges
  */
-abstract class ComponentBase extends Extendable
+abstract class ComponentBase extends Extendable implements CallsAnyMethod
 {
     use \System\Traits\AssetMaker;
     use \System\Traits\EventEmitter;
+    use \System\Traits\DependencyMaker;
     use \System\Traits\PropertyContainer;
 
     /**
@@ -77,12 +79,12 @@ abstract class ComponentBase extends Extendable
     protected $externalPropertyNames = [];
 
     /**
-     * Component constructor. Takes in the page or layout code section object
+     * __construct the component, which takes in the page or layout code section object
      * and properties set by the page or layout.
-     * @param null|CodeBase $cmsObject
+     * @param CodeBase|null $cmsObject
      * @param array $properties
      */
-    public function __construct(CodeBase $cmsObject = null, $properties = [])
+    public function __construct($cmsObject = null, $properties = [])
     {
         if ($cmsObject !== null) {
             $this->page = $cmsObject;
@@ -92,19 +94,27 @@ abstract class ComponentBase extends Extendable
         $this->properties = $this->validateProperties($properties);
 
         $className = Str::normalizeClassName(get_called_class());
-        $this->dirName = strtolower(str_replace('\\', '/', $className));
-        $this->assetPath = Config::get('cms.pluginsPath', '/plugins').dirname(dirname($this->dirName));
+        $this->dirName = '/'.strtolower(str_replace('\\', '/', $className));
+        $this->assetPath = $this->getComponentAssetPath();
 
         parent::__construct();
     }
 
     /**
-     * Returns information about this component, including name and description.
+     * componentDetails returns information about this component, including name and description
      */
     abstract public function componentDetails();
 
     /**
-     * Returns the absolute component path.
+     * makePrimaryAccessor returns the PHP object variable for the Twig view layer.
+     */
+    public function makePrimaryAccessor()
+    {
+        return $this;
+    }
+
+    /**
+     * getPath returns the absolute component path
      */
     public function getPath()
     {
@@ -112,14 +122,14 @@ abstract class ComponentBase extends Extendable
     }
 
     /**
-     * Executed when this component is first initialized, before AJAX requests.
+     * init is executed when this component is first initialized, before AJAX requests.
      */
     public function init()
     {
     }
 
     /**
-     * Executed when this component is bound to a page or layout, part of
+     * onRun is executed when this component is bound to a page or layout, part of
      * the page life cycle.
      */
     public function onRun()
@@ -127,7 +137,7 @@ abstract class ComponentBase extends Extendable
     }
 
     /**
-     * Executed when this component is rendered on a page or layout.
+     * onRender is executed when this component is rendered on a page or layout.
      */
     public function onRender()
     {
@@ -161,7 +171,7 @@ abstract class ComponentBase extends Extendable
          *
          *     Event::listen('cms.component.beforeRunAjaxHandler', function ((\Cms\Classes\ComponentBase) $component, (string) $handler) {
          *         if (strpos($handler, '::')) {
-         *             list($componentAlias, $handlerName) = explode('::', $handler);
+         *             [$componentAlias, $handlerName] = explode('::', $handler);
          *             if ($componentAlias === $this->getBackendWidgetAlias()) {
          *                 return $this->backendControllerProxy->runAjaxHandler($handler);
          *             }
@@ -172,7 +182,7 @@ abstract class ComponentBase extends Extendable
          *
          *     $this->controller->bindEvent('component.beforeRunAjaxHandler', function ((string) $handler) {
          *         if (strpos($handler, '::')) {
-         *             list($componentAlias, $handlerName) = explode('::', $handler);
+         *             [$componentAlias, $handlerName] = explode('::', $handler);
          *             if ($componentAlias === $this->getBackendWidgetAlias()) {
          *                 return $this->backendControllerProxy->runAjaxHandler($handler);
          *             }
@@ -184,7 +194,7 @@ abstract class ComponentBase extends Extendable
             return $event;
         }
 
-        $result = $this->$handler();
+        $result = $this->makeCallMethod($this, $handler);
 
         /**
          * @event cms.component.runAjaxHandler
@@ -256,11 +266,11 @@ abstract class ComponentBase extends Extendable
      * Sets an external property name.
      * @param string $name Property name
      * @param string $extName External property name
-     * @return string
+     * @return void
      */
     public function setExternalPropertyName($name, $extName)
     {
-        return $this->externalPropertyNames[$name] = $extName;
+        array_set($this->externalPropertyNames, $name, $extName);
     }
 
     /**
@@ -284,7 +294,7 @@ abstract class ComponentBase extends Extendable
      */
     public function paramName($name, $default = null)
     {
-        if (($extName = $this->propertyName($name)) && substr($extName, 0, 1) == ':') {
+        if (($extName = $this->propertyName($name)) && substr($extName, 0, 1) === ':') {
             return substr($extName, 1);
         }
 
@@ -325,5 +335,23 @@ abstract class ComponentBase extends Extendable
     public function __toString()
     {
         return $this->alias;
+    }
+
+    //
+    // Internals
+    //
+
+    /**
+     * getComponentAssetPath returns the public directory for the component assets
+     */
+    protected function getComponentAssetPath(): string
+    {
+        $assetUrl = Config::get('system.plugins_asset_url');
+
+        if (!$assetUrl) {
+            $assetUrl = Config::get('app.asset_url').'/plugins';
+        }
+
+        return $assetUrl . dirname(dirname($this->dirName));
     }
 }

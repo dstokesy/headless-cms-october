@@ -1,61 +1,57 @@
 <?php namespace October\Rain\Scaffold;
 
-use Illuminate\Support\ServiceProvider;
 use October\Rain\Scaffold\Console\CreateCommand;
 use October\Rain\Scaffold\Console\CreatePlugin;
 use October\Rain\Scaffold\Console\CreateModel;
+use October\Rain\Scaffold\Console\CreateMigration;
 use October\Rain\Scaffold\Console\CreateController;
 use October\Rain\Scaffold\Console\CreateComponent;
 use October\Rain\Scaffold\Console\CreateFormWidget;
 use October\Rain\Scaffold\Console\CreateReportWidget;
+use October\Rain\Scaffold\Console\CreateFilterWidget;
+use October\Rain\Scaffold\Console\CreateContentField;
+use Illuminate\Contracts\Support\DeferrableProvider;
+use Illuminate\Support\ServiceProvider;
 
-class ScaffoldServiceProvider extends ServiceProvider
+/**
+ * ScaffoldServiceProvider
+ */
+class ScaffoldServiceProvider extends ServiceProvider implements DeferrableProvider
 {
     /**
-     * Register the service provider.
-     * @return void
+     * register the service provider.
      */
     public function register()
     {
-        $this->app->singleton('command.create.plugin', function () {
-            return new CreatePlugin;
-        });
+        if (!$this->app->runningInConsole()) {
+            return;
+        }
 
-        $this->app->singleton('command.create.model', function () {
-            return new CreateModel;
-        });
-
-        $this->app->singleton('command.create.controller', function () {
-            return new CreateController;
-        });
-
-        $this->app->singleton('command.create.component', function () {
-            return new CreateComponent;
-        });
-
-        $this->app->singleton('command.create.formwidget', function () {
-            return new CreateFormWidget;
-        });
-
-        $this->app->singleton('command.create.reportwidget', function () {
-            return new CreateReportWidget;
-        });
-
-        $this->app->singleton('command.create.command', function () {
-            return new CreateCommand;
-        });
+        $this->app->singleton('command.create.plugin', CreatePlugin::class);
+        $this->app->singleton('command.create.model', CreateModel::class);
+        $this->app->singleton('command.create.migration', CreateMigration::class);
+        $this->app->singleton('command.create.controller', CreateController::class);
+        $this->app->singleton('command.create.component', CreateComponent::class);
+        $this->app->singleton('command.create.formwidget', CreateFormWidget::class);
+        $this->app->singleton('command.create.reportwidget', CreateReportWidget::class);
+        $this->app->singleton('command.create.filterwidget', CreateFilterWidget::class);
+        $this->app->singleton('command.create.contentfield', CreateContentField::class);
+        $this->app->singleton('command.create.command', CreateCommand::class);
 
         $this->commands('command.create.plugin');
         $this->commands('command.create.model');
+        $this->commands('command.create.migration');
         $this->commands('command.create.controller');
         $this->commands('command.create.component');
         $this->commands('command.create.formwidget');
         $this->commands('command.create.reportwidget');
+        $this->commands('command.create.filterwidget');
+        $this->commands('command.create.contentfield');
         $this->commands('command.create.command');
     }
 
     /**
-     * Get the services provided by the provider.
+     * provides the returned services.
      * @return array
      */
     public function provides()
@@ -63,11 +59,14 @@ class ScaffoldServiceProvider extends ServiceProvider
         return [
             'command.create.plugin',
             'command.create.model',
+            'command.create.migration',
             'command.create.controller',
             'command.create.component',
             'command.create.formwidget',
             'command.create.reportwidget',
-            'command.create.command',
+            'command.create.filterwidget',
+            'command.create.contentfield',
+            'command.create.command'
         ];
     }
 }

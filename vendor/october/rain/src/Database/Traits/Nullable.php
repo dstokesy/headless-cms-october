@@ -2,51 +2,51 @@
 
 use Exception;
 
+/**
+ * Nullable will set empty attributes to values equivalent to NULL in the database.
+ *
+ * @package october\database
+ * @author Alexey Bobkov, Samuel Georges
+ */
 trait Nullable
 {
     /**
-     * @var array List of attribute names which should be set to null when empty.
+     * @var array nullable attribute names which should be set to null when empty.
      *
      * protected $nullable = [];
      */
 
     /**
-     * Boot the nullable trait for a model
-     *
-     * @return void
+     * initializeNullable trait for a model
      */
-    public static function bootNullable()
+    public function initializeNullable()
     {
-        if (!property_exists(get_called_class(), 'nullable')) {
+        if (!is_array($this->nullable)) {
             throw new Exception(sprintf(
-                'You must define a $nullable property in %s to use the Nullable trait.',
-                get_called_class()
+                'The $nullable property in %s must be an array to use the Nullable trait.',
+                get_class($this)
             ));
         }
 
-        static::extend(function ($model) {
-            $model->bindEvent('model.beforeSave', function () use ($model) {
-                $model->nullableBeforeSave();
-            });
+        $this->bindEvent('model.beforeSave', function () {
+            $this->nullableBeforeSave();
         });
     }
 
     /**
-     * Adds an attribute to the nullable attributes list
+     * addNullable attribute to the nullable attributes list
      * @param  array|string|null  $attributes
-     * @return $this
+     * @return void
      */
     public function addNullable($attributes = null)
     {
         $attributes = is_array($attributes) ? $attributes : func_get_args();
 
         $this->nullable = array_merge($this->nullable, $attributes);
-
-        return $this;
     }
 
     /**
-     * Checks if the supplied value is empty, excluding zero.
+     * checkNullableValue checks if the supplied value is empty, excluding zero.
      * @param  string $value Value to check
      * @return bool
      */
@@ -60,8 +60,7 @@ trait Nullable
     }
 
     /**
-     * Nullify empty fields
-     * @return void
+     * nullableBeforeSave will nullify empty fields at time of saving.
      */
     public function nullableBeforeSave()
     {

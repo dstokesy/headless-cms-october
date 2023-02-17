@@ -21,15 +21,6 @@ tabs:
             type: dropdown
             tab: system::lang.mail.general
 
-        drivers_hint:
-            type: partial
-            path: ~/modules/system/models/mailsetting/_drivers_hint.htm
-            tab: system::lang.mail.general
-            trigger:
-                action: show
-                field: send_mode
-                condition: value[mandrill][mailgun][ses]
-
         smtp_address:
             label: system::lang.mail.smtp_address
             tab: system::lang.mail.general
@@ -79,6 +70,7 @@ tabs:
         smtp_password:
             label: system::lang.mail.smtp_password
             tab: system::lang.mail.general
+            type: sensitive
             span: right
             trigger:
                 action: show
@@ -107,19 +99,11 @@ tabs:
             label: system::lang.mail.mailgun_secret
             commentAbove: system::lang.mail.mailgun_secret_comment
             tab: system::lang.mail.general
+            type: sensitive
             trigger:
                 action: show
                 field: send_mode
                 condition: value[mailgun]
-
-        mandrill_secret:
-            label: system::lang.mail.mandrill_secret
-            commentAbove: system::lang.mail.mandrill_secret_comment
-            tab: system::lang.mail.general
-            trigger:
-                action: show
-                field: send_mode
-                condition: value[mandrill]
 
         ses_key:
             label: system::lang.mail.ses_key
@@ -135,6 +119,7 @@ tabs:
             label: system::lang.mail.ses_secret
             commentAbove: system::lang.mail.ses_secret_comment
             tab: system::lang.mail.general
+            type: sensitive
             span: right
             trigger:
                 action: show
@@ -151,11 +136,12 @@ tabs:
                 field: send_mode
                 condition: value[ses]
 
-        sparkpost_secret:
-            label: system::lang.mail.sparkpost_secret
-            commentAbove: system::lang.mail.sparkpost_secret_comment
+        postmark_token:
+            label: system::lang.mail.postmark_token
+            commentAbove: system::lang.mail.postmark_token_comment
+            type: sensitive
             tab: system::lang.mail.general
             trigger:
                 action: show
                 field: send_mode
-                condition: value[sparkpost]
+                condition: value[postmark]

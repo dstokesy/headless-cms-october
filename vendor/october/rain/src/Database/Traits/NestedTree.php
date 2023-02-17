@@ -3,12 +3,12 @@
 use DbDongle;
 use October\Rain\Database\Collection;
 use October\Rain\Database\TreeCollection;
-use October\Rain\Database\NestedTreeScope;
+use October\Rain\Database\Scopes\NestedTreeScope;
 use Illuminate\Database\Eloquent\SoftDeletingScope;
 use Exception;
 
 /**
- * Nested set model trait
+ * NestedTree is a nested set model trait
  *
  * Model table must have parent_id, nest_left, nest_right and nest_depth table columns.
  * In the model class definition:
@@ -67,94 +67,103 @@ use Exception;
  *   $model->getEagerRoot(); // Returns a list of all root nodes, with ->children eager loaded.
  *   $model->getEagerChildren(); // Returns direct child nodes, with ->children eager loaded.
  *
+ * @package october\database
+ * @author Alexey Bobkov, Samuel Georges
  */
-
 trait NestedTree
 {
     /**
-     * @var int Indicates if the model should be aligned to new parent.
+     * @var int moveToNewParentId indicates if the model should be aligned to new parent.
      */
-    protected $moveToNewParentId = null;
+    protected $moveToNewParentId = false;
 
-    /*
-     * Constructor
+    /**
+     * bootNestedTree constructor
      */
     public static function bootNestedTree()
     {
         static::addGlobalScope(new NestedTreeScope);
-
-        static::extend(function ($model) {
-            /*
-             * Define relationships
-             */
-            $model->hasMany['children'] = [
-                get_class($model),
-                'key' => $model->getParentColumnName()
-            ];
-
-            $model->belongsTo['parent'] = [
-                get_class($model),
-                'key' => $model->getParentColumnName()
-            ];
-
-            /*
-             * Bind events
-             */
-            $model->bindEvent('model.beforeCreate', function () use ($model) {
-                $model->setDefaultLeftAndRight();
-            });
-
-            $model->bindEvent('model.beforeSave', function () use ($model) {
-                $model->storeNewParent();
-            });
-
-            $model->bindEvent('model.afterSave', function () use ($model) {
-                $model->moveToNewParent();
-                $model->setDepth();
-            });
-
-            $model->bindEvent('model.beforeDelete', function () use ($model) {
-                $model->deleteDescendants();
-            });
-
-            if (static::hasGlobalScope(SoftDeletingScope::class)) {
-                $model->bindEvent('model.beforeRestore', function () use ($model) {
-                    $model->shiftSiblingsForRestore();
-                });
-
-                $model->bindEvent('model.afterRestore', function () use ($model) {
-                    $model->restoreDescendants();
-                });
-            }
-        });
     }
 
     /**
-     * Handle if the parent column is modified so it can be realigned.
-     * @return void
+     * initializeNestedTree constructor
+     */
+    public function initializeNestedTree()
+    {
+        // Define relationships
+        $this->hasMany['children'] = [
+            get_class($this),
+            'key' => $this->getParentColumnName(),
+            'replicate' => false
+        ];
+
+        $this->belongsTo['parent'] = [
+            get_class($this),
+            'key' => $this->getParentColumnName(),
+            'replicate' => false
+        ];
+
+        // Bind events
+        $this->bindEvent('model.beforeCreate', function () {
+            $this->setDefaultLeftAndRight();
+        });
+
+        $this->bindEvent('model.beforeSave', function () {
+            $this->storeNewParent();
+        });
+
+        $this->bindEvent('model.afterSave', function () {
+            $this->moveToNewParent();
+        });
+
+        $this->bindEvent('model.beforeDelete', function () {
+            $this->deleteDescendants();
+        });
+
+        if (static::hasGlobalScope(SoftDeletingScope::class)) {
+            $this->bindEvent('model.beforeRestore', function () {
+                $this->shiftSiblingsForRestore();
+            });
+
+            $this->bindEvent('model.afterRestore', function () {
+                $this->restoreDescendants();
+            });
+        }
+    }
+
+    /**
+     * storeNewParent handles if the parent column is modified so it can be realigned.
      */
     public function storeNewParent()
     {
-        $parentColumn = $this->getParentColumnName();
-        $isDirty = $this->isDirty($parentColumn);
+        // Has the parent column been set from the outside
+        $parentId = $this->getParentId();
+        $parentOld = $this->getOriginal($this->getParentColumnName());
+        $isDirty = (int) $parentOld !== (int) $parentId;
+
+        // The parent ID column is nullable, including zero values,
+        // skipping this logic if the parent ID is already null.
+        if (!$parentId && $parentId !== null) {
+            $this->setAttribute($this->getParentColumnName(), null);
+            $parentId = null;
+        }
 
         // Parent is not set or unchanged
         if (!$isDirty) {
             $this->moveToNewParentId = false;
         }
         // Created as a root node
-        elseif (!$this->exists && !$this->getParentId()) {
+        elseif (!$this->exists && !$parentId) {
             $this->moveToNewParentId = false;
         }
         // Parent has been set
         else {
-            $this->moveToNewParentId = $this->getParentId();
+            $this->moveToNewParentId = $parentId;
         }
     }
 
     /**
-     * If the parent identifier is dirty, realign the nesting.
-     * @return void
+     * moveToNewParent will realign the nesting if the parent identifier is dirty.
      */
     public function moveToNewParent()
     {
@@ -169,9 +178,8 @@ trait NestedTree
     }
 
     /**
-     * Deletes a branch off the tree, shifting all the elements on the right
+     * deleteDescendants deletes a branch off the tree, shifting all the elements on the right
      * back to the left so the counts work.
-     * @return void
      */
     public function deleteDescendants()
     {
@@ -187,26 +195,22 @@ trait NestedTree
             $left = $this->getLeft();
             $right = $this->getRight();
 
-            /*
-             * Delete children
-             */
-            $this->newQuery()
+            // Delete children
+            $this->newNestedTreeQuery()
                 ->where($leftCol, '>', $left)
                 ->where($rightCol, '<', $right)
                 ->delete()
             ;
 
-            /*
-             * Update left and right indexes for the remaining nodes
-             */
+            // Update left and right indexes for the remaining nodes
             $diff = $right - $left + 1;
 
-            $this->newQuery()
+            $this->newNestedTreeQuery()
                 ->where($leftCol, '>', $right)
                 ->decrement($leftCol, $diff)
             ;
 
-            $this->newQuery()
+            $this->newNestedTreeQuery()
                 ->where($rightCol, '>', $right)
                 ->decrement($rightCol, $diff)
             ;
@@ -214,8 +218,7 @@ trait NestedTree
     }
 
     /**
-     * Allocates a slot for the the current node between its siblings.
-     * @return void
+     * shiftSiblingsForRestore allocates a slot for the the current node between its siblings.
      */
     public function shiftSiblingsForRestore()
     {
@@ -229,17 +232,15 @@ trait NestedTree
             $left = $this->getLeft();
             $right = $this->getRight();
 
-            /*
-             * Update left and right indexes for the remaining nodes
-             */
+            // Update left and right indexes for the remaining nodes
             $diff = $right - $left + 1;
 
-            $this->newQuery()
+            $this->newNestedTreeQuery()
                 ->where($leftCol, '>=', $left)
                 ->increment($leftCol, $diff)
             ;
 
-            $this->newQuery()
+            $this->newNestedTreeQuery()
                 ->where($rightCol, '>=', $left)
                 ->increment($rightCol, $diff)
             ;
@@ -247,8 +248,7 @@ trait NestedTree
     }
 
     /**
-     * Restores all of the current node descendants.
-     * @return void
+     * restoreDescendants of the current node.
      */
     public function restoreDescendants()
     {
@@ -257,7 +257,7 @@ trait NestedTree
         }
 
         $this->getConnection()->transaction(function () {
-            $this->newQuery()
+            $this->newNestedTreeQuery()
                 ->withTrashed()
                 ->where($this->getLeftColumnName(), '>', $this->getLeft())
                 ->where($this->getRightColumnName(), '<', $this->getRight())
@@ -274,7 +274,7 @@ trait NestedTree
     //
 
     /**
-     * Make this model a root node.
+     * makeRoot makes this model a root node.
      * @return \October\Rain\Database\Model
      */
     public function makeRoot()
@@ -283,7 +283,7 @@ trait NestedTree
     }
 
     /**
-     * Make model node a child of specified node.
+     * makeChildOf makes model node a child of specified node.
      * @return \October\Rain\Database\Model
      */
     public function makeChildOf($node)
@@ -292,7 +292,7 @@ trait NestedTree
     }
 
     /**
-     * Find the left sibling and move to left of it.
+     * moveLeft finds the left sibling and move to left of it.
      * @return \October\Rain\Database\Model
      */
     public function moveLeft()
@@ -301,7 +301,7 @@ trait NestedTree
     }
 
     /**
-     * Find the right sibling and move to the right of it.
+     * moveRight finds the right sibling and move to the right of it.
      * @return \October\Rain\Database\Model
      */
     public function moveRight()
@@ -310,7 +310,7 @@ trait NestedTree
     }
 
     /**
-     * Move to the model to before (left) specified node.
+     * moveBefore moves to the model to before (left) specified node.
      * @return \October\Rain\Database\Model
      */
     public function moveBefore($node)
@@ -319,7 +319,7 @@ trait NestedTree
     }
 
     /**
-     * Move to the model to after (right) a specified node.
+     * moveAfter moves to the model to after (right) a specified node.
      * @return \October\Rain\Database\Model
      */
     public function moveAfter($node)
@@ -332,38 +332,34 @@ trait NestedTree
     //
 
     /**
-     * Returns true if this is a root node.
-     * @return boolean
+     * isRoot returns true if this is a root node.
      */
-    public function isRoot()
+    public function isRoot(): bool
     {
         return $this->getParentId() === null;
     }
 
     /**
-     * Returns true if this is a child node.
-     * @return boolean
+     * isChild returns true if this is a child node.
      */
-    public function isChild()
+    public function isChild(): bool
     {
         return !$this->isRoot();
     }
 
     /**
-     * Returns true if this is a leaf node (end of a branch).
-     * @return boolean
+     * isLeaf returns true if this is a leaf node (end of a branch).
      */
-    public function isLeaf()
+    public function isLeaf(): bool
     {
-        return $this->exists && ($this->getRight() - $this->getLeft() == 1);
+        return $this->exists && ($this->getRight() - $this->getLeft() === 1);
     }
 
     /**
-     * Checks if the supplied node is inside the subtree of this model.
+     * isInsideSubtree checks if the supplied node is inside the subtree of this model.
      * @param \Model
-     * @return boolean
      */
-    public function isInsideSubtree($node)
+    public function isInsideSubtree($node): bool
     {
         return (
             $this->getLeft() >= $node->getLeft() &&
@@ -374,12 +370,10 @@ trait NestedTree
     }
 
     /**
-     * Returns true if node is a descendant.
-     *
+     * isDescendantOf returns true if node is a descendant.
      * @param NestedSet
-     * @return boolean
      */
-    public function isDescendantOf($other)
+    public function isDescendantOf($other): bool
     {
         return ($this->getLeft() > $other->getLeft() && $this->getLeft() < $other->getRight());
     }
@@ -389,7 +383,7 @@ trait NestedTree
     //
 
     /**
-     * Query scope which extracts a certain node object from the current query expression.
+     * scopeWithoutNode extracts a certain node object from the current query expression.
      * @return \Illuminate\Database\Query\Builder
      */
     public function scopeWithoutNode($query, $node)
@@ -398,7 +392,7 @@ trait NestedTree
     }
 
     /**
-     * Extracts current node (self) from current query expression.
+     * scopeWithoutSelf extracts current node (self) from current query expression.
      * @return \Illuminate\Database\Query\Builder
      */
     public function scopeWithoutSelf($query)
@@ -407,7 +401,8 @@ trait NestedTree
     }
 
     /**
-     * Extracts first root (from the current node context) from current query expression.
+     * scopeWithoutRoot extracts first root (from the current node context) from current
+     * query expression.
      * @return \Illuminate\Database\Query\Builder
      */
     public function scopeWithoutRoot($query)
@@ -416,7 +411,7 @@ trait NestedTree
     }
 
     /**
-     * Set of all children & nested children.
+     * scopeAllChildren sets of all children & nested children.
      * @return \Illuminate\Database\Query\Builder
      */
     public function scopeAllChildren($query, $includeSelf = false)
@@ -430,7 +425,7 @@ trait NestedTree
     }
 
     /**
-     * Returns a prepared query with all parents up the tree.
+     * scopeParents returns a prepared query with all parents up the tree.
      * @return \Illuminate\Database\Eloquent\Builder
      */
     public function scopeParents($query, $includeSelf = false)
@@ -444,7 +439,7 @@ trait NestedTree
     }
 
     /**
-     * Filter targeting all children of the parent, except self.
+     * scopeSiblings filters targeting all children of the parent, except self.
      * @return \Illuminate\Database\Eloquent\Builder
      */
     public function scopeSiblings($query, $includeSelf = false)
@@ -455,7 +450,7 @@ trait NestedTree
     }
 
     /**
-     * Returns all final nodes without children.
+     * scopeLeaves returns all final nodes without children.
      * @return \Illuminate\Database\Query\Builder
      */
     public function scopeLeaves($query)
@@ -472,7 +467,7 @@ trait NestedTree
     }
 
     /**
-     * Returns a list of all root nodes, without eager loading
+     * scopeGetAllRoot returns a list of all root nodes, without eager loading.
      * @return \October\Rain\Database\Collection
      */
     public function scopeGetAllRoot($query)
@@ -487,8 +482,8 @@ trait NestedTree
     }
 
     /**
-     * Non chaining scope, returns an eager loaded hierarchy tree. Children are
-     * eager loaded inside the $model->children relation.
+     * scopeGetNested is a non-chaining scope, returns an eager loaded hierarchy tree.
+     * Children are eager loaded inside the $model->children relation.
      * @return Collection A collection
      */
     public function scopeGetNested($query)
@@ -497,7 +492,8 @@ trait NestedTree
     }
 
     /**
-     * Gets an array with values of a given column. Values are indented according to their depth.
+     * scopeListsNested gets an array with values of a given column. Values are indented
+     * according to their depth.
      * @param  string $column Array values
      * @param  string $key    Array keys
      * @param  string $indent Character to indent depth
@@ -505,27 +501,26 @@ trait NestedTree
      */
     public function scopeListsNested($query, $column, $key = null, $indent = '&nbsp;&nbsp;&nbsp;')
     {
-        $columns = [$this->getDepthColumnName(), $column];
+        $resultKeyName = $this->getKeyName();
+        $columns = [$this->getDepthColumnName(), $this->getParentColumnName(), $this->getKeyName(), $column];
         if ($key !== null) {
+            $resultKeyName = $key;
             $columns[] = $key;
         }
 
-        $results = new Collection($query->getQuery()->get($columns));
-        $values = $results->pluck($columns[1])->all();
-        $indentation = $results->pluck($columns[0])->all();
+        $values = $parentIds = [];
+        $results = $query->getQuery()->orderBy($this->getLeftColumnName())->get($columns);
+        foreach ($results as $result) {
+            $parentId = $result->{$this->getParentColumnName()};
+            if ($parentId && !isset($parentIds[$parentId])) {
+                continue;
+            }
 
-        if (count($values) !== count($indentation)) {
-            throw new Exception('Column mismatch in listsNested method. Are you sure the columns exist?');
-        }
-
-        foreach ($values as $_key => $value) {
-            $values[$_key] = str_repeat($indent, $indentation[$_key]) . $value;
-        }
-
-        if ($key !== null && count($results) > 0) {
-            $keys = $results->pluck($key)->all();
-
-            return array_combine($keys, $values);
+            $parentIds[$result->{$this->getKeyName()}] = true;
+            $values[$result->{$resultKeyName}] = str_repeat(
+                $indent,
+                $result->{$this->getDepthColumnName()}
+            ) . $result->{$column};
         }
 
         return $values;
@@ -536,22 +531,22 @@ trait NestedTree
     //
 
     /**
-     * Returns all nodes and children.
+     * getAll returns all nodes and children.
      * @return \October\Rain\Database\Collection
      */
     public function getAll($columns = ['*'])
     {
-        return $this->newQuery()->get($columns);
+        return $this->newNestedTreeQuery()->get($columns);
     }
 
     /**
-     * Returns the root node starting from the current node.
+     * getRoot returns the root node starting from the current node.
      * @return \October\Rain\Database\Model
      */
     public function getRoot()
     {
         if ($this->exists) {
-            return $this->newQuery()->parents(true)
+            return $this->newNestedTreeQuery()->parents(true)
                 ->where(function ($query) {
                     $query->whereNull($this->getParentColumnName());
                     $query->orWhere($this->getParentColumnName(), 0);
@@ -562,7 +557,7 @@ trait NestedTree
 
         $parentId = $this->getParentId();
 
-        if ($parentId !== null && ($currentParent = $this->newQuery()->find($parentId))) {
+        if ($parentId !== null && ($currentParent = $this->newNestedTreeQuery()->find($parentId))) {
             return $currentParent->getRoot();
         }
 
@@ -570,25 +565,25 @@ trait NestedTree
     }
 
     /**
-     * Returns a list of all root nodes, with children eager loaded.
+     * getEagerRoot returns a list of all root nodes, with children eager loaded.
      * @return \October\Rain\Database\Collection
      */
     public function getEagerRoot()
     {
-        return $this->newQuery()->getNested();
+        return $this->newNestedTreeQuery()->getNested();
     }
 
     /**
-     * Returns an array column/key pair of all root nodes, with children eager loaded.
+     * getRootList returns an array column/key pair of all root nodes, with children eager loaded.
      * @return array
      */
     public function getRootList($column, $key = null, $indent = '&nbsp;&nbsp;&nbsp;')
     {
-        return $this->newQuery()->listsNested($column, $key, $indent);
+        return $this->newNestedTreeQuery()->listsNested($column, $key, $indent);
     }
 
     /**
-     * The direct parent node.
+     * getParent returns the direct parent node.
      * @return \October\Rain\Database\Collection
      */
     public function getParent()
@@ -597,25 +592,25 @@ trait NestedTree
     }
 
     /**
-     * Returns all parents up the tree.
+     * getParents returns all parents up the tree.
      * @return \October\Rain\Database\Collection
      */
     public function getParents()
     {
-        return $this->newQuery()->parents()->get();
+        return $this->newNestedTreeQuery()->parents()->get();
     }
 
     /**
-     * Returns all parents up the tree and self.
+     * getParentsAndSelf returns all parents up the tree and self.
      * @return \October\Rain\Database\Collection
      */
     public function getParentsAndSelf()
     {
-        return $this->newQuery()->parents(true)->get();
+        return $this->newNestedTreeQuery()->parents(true)->get();
     }
 
     /**
-     * Returns direct child nodes.
+     * getChildren returns direct child nodes.
      * @return \October\Rain\Database\Collection
      */
     public function getChildren()
@@ -624,80 +619,79 @@ trait NestedTree
     }
 
     /**
-     * Returns direct child nodes, with ->children eager loaded.
+     * getEagerChildren returns direct child nodes, with ->children eager loaded.
      * @return \October\Rain\Database\Collection
      */
     public function getEagerChildren()
     {
-        return $this->newQuery()->allChildren()->getNested();
+        return $this->newNestedTreeQuery()->allChildren()->getNested();
     }
 
     /**
-     * Returns all children down the tree.
+     * getAllChildren returns all children down the tree.
      * @return \October\Rain\Database\Collection
      */
     public function getAllChildren()
     {
-        return $this->newQuery()->allChildren()->get();
+        return $this->newNestedTreeQuery()->allChildren()->get();
     }
 
     /**
-     * Returns all children and self.
+     * getAllChildrenAndSelf returns all children and self.
      * @return \October\Rain\Database\Collection
      */
     public function getAllChildrenAndSelf()
     {
-        return $this->newQuery()->allChildren(true)->get();
+        return $this->newNestedTreeQuery()->allChildren(true)->get();
     }
 
     /**
-     * Return all siblings (parent's children).
+     * getSiblings returns all siblings (parent's children).
      * @return \October\Rain\Database\Collection
      */
     public function getSiblings()
     {
-        return $this->newQuery()->siblings()->get();
+        return $this->newNestedTreeQuery()->siblings()->get();
     }
 
     /**
-     * Return all siblings and self.
+     * getSiblingsAndSelf
      * @return \October\Rain\Database\Collection
      */
     public function getSiblingsAndSelf()
     {
-        return $this->newQuery()->siblings(true)->get();
+        return $this->newNestedTreeQuery()->siblings(true)->get();
     }
 
     /**
-     * Return left sibling
+     * getLeftSibling
      * @return \October\Rain\Database\Model
      */
     public function getLeftSibling()
     {
-        return $this->siblings()->where($this->getRightColumnName(), '=', $this->getLeft() - 1)->first();
+        return $this->siblings()->where($this->getRightColumnName(), $this->getLeft() - 1)->first();
     }
 
     /**
-     * Return right sibling
+     * getRightSibling
      * @return \October\Rain\Database\Model
      */
     public function getRightSibling()
     {
-        return $this->siblings()->where($this->getLeftColumnName(), '=', $this->getRight() + 1)->first();
+        return $this->siblings()->where($this->getLeftColumnName(), $this->getRight() + 1)->first();
     }
-    
+
     /**
-     * Returns all final nodes without children.
+     * getLeaves returns all final nodes without children.
      * @return \October\Rain\Database\Collection
      */
     public function getLeaves()
     {
-        return $this->newQuery()->leaves()->get();
+        return $this->newNestedTreeQuery()->leaves()->get();
     }
 
     /**
-     * Returns the level of this node in the tree.
-     * Root level is 0.
+     * getLevel returns the level of this node in the tree. Root level is 0.
      * @return int
      */
     public function getLevel()
@@ -706,11 +700,11 @@ trait NestedTree
             return 0;
         }
 
-        return $this->newQuery()->parents()->count();
+        return $this->newNestedTreeQuery()->parents()->count();
     }
 
     /**
-     * Returns number of all children below it.
+     * getChildCount returns number of all children below it.
      * @return int
      */
     public function getChildCount()
@@ -723,7 +717,7 @@ trait NestedTree
     //
 
     /**
-     * Sets the depth attribute
+     * setDepth sets the depth attribute.
      * @return \October\Rain\Database\Model
      */
     public function setDepth()
@@ -733,8 +727,8 @@ trait NestedTree
 
             $level = $this->getLevel();
 
-            $this->newQuery()
-                ->where($this->getKeyName(), '=', $this->getKey())
+            $this->newNestedTreeQuery()
+                ->where($this->getKeyName(), $this->getKey())
                 ->update([$this->getDepthColumnName() => $level])
             ;
 
@@ -745,13 +739,14 @@ trait NestedTree
     }
 
     /**
-     * Set defaults for left and right columns.
+     * setDefaultLeftAndRight columns
      * @return void
      */
     public function setDefaultLeftAndRight()
     {
         $highRight = $this
-            ->newQueryWithoutScopes()
+            ->newNestedTreeQuery()
+            ->reorder()
             ->orderBy($this->getRightColumnName(), 'desc')
             ->limit(1)
             ->first()
@@ -764,118 +759,63 @@ trait NestedTree
 
         $this->setAttribute($this->getLeftColumnName(), $maxRight + 1);
         $this->setAttribute($this->getRightColumnName(), $maxRight + 2);
-    }
-
-    //
-    // Column getters
-    //
-
-    /**
-     * Get parent column name.
-     * @return string
-     */
-    public function getParentColumnName()
-    {
-        return defined('static::PARENT_ID') ? static::PARENT_ID : 'parent_id';
+        $this->setAttribute($this->getDepthColumnName(), 0);
     }
 
     /**
-     * Get fully qualified parent column name.
-     * @return string
+     * resetTreeNesting can be used to repair corrupt or missing tree definitions,
+     * it will flatten and heal the necessary columns, all parent and child
+     * associations are retained.
      */
-    public function getQualifiedParentColumnName()
+    public function resetTreeNesting()
     {
-        return $this->getTable(). '.' .$this->getParentColumnName();
+        $this->getConnection()->transaction(function () {
+            $buildFunc = function($items, &$nest, $level = 0) use (&$buildFunc) {
+                $items->each(function ($item) use (&$nest, $level, $buildFunc) {
+                    $item->setAttribute($this->getLeftColumnName(), $nest++);
+                    $item->setAttribute($this->getDepthColumnName(), $level);
+                    $buildFunc($item->getChildren(), $nest, $level + 1);
+                    $item->setAttribute($this->getRightColumnName(), $nest++);
+                    $item->save(['force' => true]);
+                });
+            };
+
+            $records = $this
+                ->newNestedTreeQuery()
+                ->whereNull($this->getParentColumnName())
+                ->get()
+            ;
+
+            $nest = 1;
+            $buildFunc($records, $nest);
+        });
     }
 
     /**
-     * Get value of the model parent_id column.
-     * @return int
+     * resetTreeOrphans can be used to locate orphaned records, those that refer
+     * to a parent_id value where the associated record no longer exists, and
+     * promote them to be visible in the collection again, by setting the
+     * parent column to null.
      */
-    public function getParentId()
+    public function resetTreeOrphans()
     {
-        return $this->getAttribute($this->getParentColumnName());
-    }
+        $orphanMap = [];
+        $recordMap = $this
+            ->newNestedTreeQuery()
+            ->pluck($this->getParentColumnName(), $this->getKeyName())
+            ->all();
 
-    /**
-     * Get left column name.
-     * @return string
-     */
-    public function getLeftColumnName()
-    {
-        return defined('static::NEST_LEFT') ? static::NEST_LEFT : 'nest_left';
-    }
+        foreach ($recordMap as $id => $parent) {
+            if ($parent && !array_key_exists($parent, $recordMap)) {
+                $orphanMap[] = $id;
+            }
+        }
 
-    /**
-     * Get fully qualified left column name.
-     * @return string
-     */
-    public function getQualifiedLeftColumnName()
-    {
-        return $this->getTable() . '.' . $this->getLeftColumnName();
-    }
-
-    /**
-     * Get value of the left column.
-     * @return int
-     */
-    public function getLeft()
-    {
-        return $this->getAttribute($this->getLeftColumnName());
-    }
-
-    /**
-     * Get right column name.
-     * @return string
-     */
-    public function getRightColumnName()
-    {
-        return defined('static::NEST_RIGHT') ? static::NEST_RIGHT : 'nest_right';
-    }
-
-    /**
-     * Get fully qualified right column name.
-     * @return string
-     */
-    public function getQualifiedRightColumnName()
-    {
-        return $this->getTable() . '.' . $this->getRightColumnName();
-    }
-
-    /**
-     * Get value of the right column.
-     * @return int
-     */
-    public function getRight()
-    {
-        return $this->getAttribute($this->getRightColumnName());
-    }
-
-    /**
-     * Get depth column name.
-     * @return string
-     */
-    public function getDepthColumnName()
-    {
-        return defined('static::NEST_DEPTH') ? static::NEST_DEPTH : 'nest_depth';
-    }
-
-    /**
-     * Get fully qualified depth column name.
-     * @return string
-     */
-    public function getQualifiedDepthColumnName()
-    {
-        return $this->getTable() . '.' . $this->getDepthColumnName();
-    }
-
-    /**
-     * Get value of the depth column.
-     * @return int
-     */
-    public function getDepth()
-    {
-        return $this->getAttribute($this->getDepthColumnName());
+        if ($orphanMap) {
+            $this->newNestedTreeQuery()
+                ->whereIn($this->getKeyName(), $orphanMap)
+                ->update([$this->getParentColumnName() => null]);
+        }
     }
 
     //
@@ -883,45 +823,37 @@ trait NestedTree
     //
 
     /**
-     * Handler for all node alignments.
+     * moveTo is a handler for all node alignments.
      * @param mixed  $target
      * @param string $position
      * @return \October\Rain\Database\Model
      */
     protected function moveTo($target, $position)
     {
-        /*
-         * Validate target
-         */
+        // Validate target
         if ($target instanceof \October\Rain\Database\Model) {
             $target->reload();
         }
         else {
-            $target = $this->newQuery()->find($target);
+            $target = $this->newNestedTreeQuery()->find($target);
         }
 
-        /*
-         * Validate move
-         */
+        // Validate move
         if (!$this->validateMove($this, $target, $position)) {
             return $this;
         }
 
-        /*
-         * Perform move
-         */
+        // Perform move
         $this->getConnection()->transaction(function () use ($target, $position) {
             $this->performMove($this, $target, $position);
         });
 
-        /*
-         * Reapply alignments
-         */
+        // Reapply alignments
         $target->reload();
         $this->setDepth();
 
-        foreach ($this->newQuery()->allChildren()->get() as $descendant) {
-            $descendant->save();
+        foreach ($this->newNestedTreeQuery()->allChildren()->get() as $descendant) {
+            $descendant->setDepth();
         }
 
         $this->reload();
@@ -929,19 +861,19 @@ trait NestedTree
     }
 
     /**
-     * Executes the SQL query associated with the update of the indexes affected
+     * performMove executes the SQL query associated with the update of the indexes affected
      * by the move operation.
      * @return int
      */
     protected function performMove($node, $target, $position)
     {
-        list($a, $b, $c, $d) = $this->getSortedBoundaries($node, $target, $position);
+        [$a, $b, $c, $d] = $this->getSortedBoundaries($node, $target, $position);
 
         $connection = $node->getConnection();
         $grammar = $connection->getQueryGrammar();
         $pdo = $connection->getPdo();
 
-        $parentId = ($position == 'child')
+        $parentId = ($position === 'child')
             ? $target->getKey()
             : $target->getParentId();
 
@@ -975,7 +907,7 @@ trait NestedTree
             WHEN $wrappedId = $currentId THEN $parentId
             ELSE $wrappedParent END";
 
-        $result = $node->newQuery()
+        $result = $node->newNestedTreeQuery()
             ->where(function ($query) use ($leftColumn, $rightColumn, $a, $d) {
                 $query
                     ->whereBetween($leftColumn, [$a, $d])
@@ -993,7 +925,7 @@ trait NestedTree
     }
 
     /**
-     * Validates a proposed move and returns true if changes are needed.
+     * validateMove validates a proposed move and returns true if changes are needed.
      * @return void
      */
     protected function validateMove($node, $target, $position)
@@ -1010,7 +942,7 @@ trait NestedTree
         }
 
         if ($target === null) {
-            if ($position == 'left' || $position == 'right') {
+            if ($position === 'left' || $position === 'right') {
                 throw new Exception(sprintf(
                     'Cannot resolve target node. This node cannot move any further to the %s.',
                     $position
@@ -1020,7 +952,7 @@ trait NestedTree
             throw new Exception('Cannot resolve target node.');
         }
 
-        if ($node == $target) {
+        if ($node === $target) {
             throw new Exception('A node cannot be moved to itself.');
         }
 
@@ -1029,13 +961,13 @@ trait NestedTree
         }
 
         return !(
-            $this->getPrimaryBoundary($node, $target, $position) == $node->getRight() ||
-            $this->getPrimaryBoundary($node, $target, $position) == $node->getLeft()
+            $this->getPrimaryBoundary($node, $target, $position) === $node->getRight() ||
+            $this->getPrimaryBoundary($node, $target, $position) === $node->getLeft()
         );
     }
 
     /**
-     * Calculates the boundary.
+     * getPrimaryBoundary calculates the boundary.
      * @return int
      */
     protected function getPrimaryBoundary($node, $target, $position)
@@ -1061,7 +993,7 @@ trait NestedTree
     }
 
     /**
-     * Calculates the other boundary.
+     * getOtherBoundary calculates the other boundary.
      * @return int
      */
     protected function getOtherBoundary($node, $target, $position)
@@ -1072,7 +1004,7 @@ trait NestedTree
     }
 
     /**
-     * Calculates a sorted boundaries array.
+     * getSortedBoundaries calculates a sorted boundaries array.
      * @return array
      */
     protected function getSortedBoundaries($node, $target, $position)
@@ -1089,8 +1021,132 @@ trait NestedTree
         return $boundaries;
     }
 
+    //
+    // Column getters
+    //
+
     /**
-     * Return a custom TreeCollection collection
+     * getParentColumnName
+     * @return string
+     */
+    public function getParentColumnName()
+    {
+        return defined('static::PARENT_ID') ? static::PARENT_ID : 'parent_id';
+    }
+
+    /**
+     * getQualifiedParentColumnName
+     * @return string
+     */
+    public function getQualifiedParentColumnName()
+    {
+        return $this->getTable(). '.' .$this->getParentColumnName();
+    }
+
+    /**
+     * getParentId gets value of the model parent_id column.
+     * @return int
+     */
+    public function getParentId()
+    {
+        return $this->getAttribute($this->getParentColumnName());
+    }
+
+    /**
+     * getLeftColumnName
+     * @return string
+     */
+    public function getLeftColumnName()
+    {
+        return defined('static::NEST_LEFT') ? static::NEST_LEFT : 'nest_left';
+    }
+
+    /**
+     * getQualifiedLeftColumnName
+     * @return string
+     */
+    public function getQualifiedLeftColumnName()
+    {
+        return $this->getTable() . '.' . $this->getLeftColumnName();
+    }
+
+    /**
+     * getLeft column value.
+     * @return int
+     */
+    public function getLeft()
+    {
+        return $this->getAttribute($this->getLeftColumnName());
+    }
+
+    /**
+     * getRightColumnName
+     * @return string
+     */
+    public function getRightColumnName()
+    {
+        return defined('static::NEST_RIGHT') ? static::NEST_RIGHT : 'nest_right';
+    }
+
+    /**
+     * getQualifiedRightColumnName
+     * @return string
+     */
+    public function getQualifiedRightColumnName()
+    {
+        return $this->getTable() . '.' . $this->getRightColumnName();
+    }
+
+    /**
+     * getRight column value.
+     * @return int
+     */
+    public function getRight()
+    {
+        return $this->getAttribute($this->getRightColumnName());
+    }
+
+    /**
+     * getDepthColumnName
+     * @return string
+     */
+    public function getDepthColumnName()
+    {
+        return defined('static::NEST_DEPTH') ? static::NEST_DEPTH : 'nest_depth';
+    }
+
+    /**
+     * getQualifiedDepthColumnName
+     * @return string
+     */
+    public function getQualifiedDepthColumnName()
+    {
+        return $this->getTable() . '.' . $this->getDepthColumnName();
+    }
+
+    /**
+     * getDepth column value.
+     * @return int
+     */
+    public function getDepth()
+    {
+        return $this->getAttribute($this->getDepthColumnName());
+    }
+
+    //
+    // Instances
+    //
+
+    /**
+     * newNestedTreeQuery creates a new query for nested sets
+     */
+    protected function newNestedTreeQuery()
+    {
+        return $this->newQuery();
+    }
+
+    /**
+     * newCollection returns a custom TreeCollection collection.
      */
     public function newCollection(array $models = [])
     {

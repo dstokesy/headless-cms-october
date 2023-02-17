@@ -1,11 +1,11 @@
 <?php namespace October\Rain\Exception;
 
 use File;
+use Throwable;
 use Exception;
 
 /**
- * The base exception class.
- * This class represents a base interface and set of properties
+ * ExceptionBase class represents a base interface and set of properties
  * for system and application exceptions.
  *
  * @package october\exception
@@ -14,44 +14,46 @@ use Exception;
 class ExceptionBase extends Exception
 {
     /**
-     * @var Exception If this exception is acting as a mask, this property stores the face exception.
+     * @var Exception mask used when this exception is acting as a mask,
+     * this property stores the face exception.
      */
     protected $mask;
 
     /**
-     * @var string Hint Message to help the user with troubleshooting the error (optional).
+     * @var string hint message to help the user with troubleshooting the error (optional).
      */
     public $hint;
 
     /**
-     * @var array File content relating to the exception, each value of the array is a file line number.
+     * @var array fileContent relating to the exception, each value of the array is a file
+     * line number.
      */
     protected $fileContent = [];
 
     /**
-     * @var string Class name of the called Exception.
+     * @var string className of the called Exception.
      */
     protected $className;
 
     /**
-     * @var string Error type derived from the error code. Will be 'Undefined' if no code is used.
+     * @var string errorType derived from the error code, will be 'Undefined' if no code is used.
      */
     protected $errorType;
 
     /**
-     * @var stdObject Cached code information for highlighting code.
+     * @var stdObject highlight cached code information for highlighting code.
      */
     protected $highlight;
 
     /**
-     * CMS base exception class constructor. Inherits the native PHP Exception.
+     * __construct the CMS base exception class, which inherits the native PHP Exception.
      * All CMS related classes should inherit this class, it creates a set of unified properties
      * and an interface for displaying the CMS exception page.
      * @param string $message Error message.
      * @param int $code Error code.
-     * @param Exception $previous Previous exception.
+     * @param Throwable $previous Previous exception.
      */
-    public function __construct($message = "", $code = 0, Exception $previous = null)
+    public function __construct($message = "", $code = 0, Throwable $previous = null)
     {
         if ($this->className === null) {
             $this->className = get_called_class();
@@ -65,7 +67,7 @@ class ExceptionBase extends Exception
     }
 
     /**
-     * Returns the class name of the called Exception.
+     * getClassName returns the class name of the called Exception.
      * @return string
      */
     public function getClassName()
@@ -74,7 +76,7 @@ class ExceptionBase extends Exception
     }
 
     /**
-     * Returns the error type derived from the error code used.
+     * getErrorType returns the error type derived from the error code used.
      * @return string
      */
     public function getErrorType()
@@ -83,7 +85,16 @@ class ExceptionBase extends Exception
     }
 
     /**
-     * Masks an exception with the called class. This should catch fatal and php errors.
+     * getNiceFile returns a file that is suitable for sharing.
+     * @return string
+     */
+    public function getNiceFile()
+    {
+        return str_replace(base_path(), '~', $this->getFile());
+    }
+
+    /**
+     * mask an exception with the called class. This should catch fatal and php errors.
      * It should always be followed by the unmask() method to remove the mask.
      * @param string $message Error message.
      * @param int $code Error code.
@@ -97,8 +108,7 @@ class ExceptionBase extends Exception
     }
 
     /**
-     * Removes the active mask from the called class.
-     * @return void
+     * unmask removes the active mask from the called class.
      */
     public static function unmask()
     {
@@ -106,23 +116,24 @@ class ExceptionBase extends Exception
     }
 
     /**
-     * If this exception acts as a mask, sets the face for the foreign exception.
-     * @param Exception $exception Face for the mask, the underlying exception.
+     * setMask is used if this exception acts as a mask, sets the face for the foreign exception.
+     * @param Throwable $exception Face for the mask, the underlying exception.
      * @return void
      */
-    public function setMask(Exception $exception)
+    public function setMask(Throwable $exception)
     {
         $this->mask = $exception;
         $this->applyMask($exception);
     }
 
     /**
-     * This method is used when applying the mask exception to the face exception.
-     * It can be used as an override for child classes who may use different masking logic.
-     * @param Exception $exception Face exception being masked.
+     * applyMask is used if this method is used when applying the mask exception to the face
+     * exception. It can be used as an override for child classes who may use different
+     * masking logic.
+     * @param Throwable $exception Face exception being masked.
      * @return void
      */
-    public function applyMask(Exception $exception)
+    public function applyMask(Throwable $exception)
     {
         $this->file = $exception->getFile();
         $this->message = $exception->getMessage();
@@ -131,9 +142,9 @@ class ExceptionBase extends Exception
     }
 
     /**
-     * If this exception is acting as a mask, return the face exception. Otherwise return
-     * this exception as the true one.
-     * @return Exception The underlying exception, or this exception if no mask is applied.
+     * getTrueException is used if this exception is acting as a mask, return the face exception.
+     * Otherwise return this exception as the true one.
+     * @return Throwable The underlying exception, or this exception if no mask is applied.
      */
     public function getTrueException()
     {
@@ -145,9 +156,10 @@ class ExceptionBase extends Exception
     }
 
     /**
-     * Generates information used for highlighting the area of code in context of the exception line number.
-     * The highlighted block of code will be six (6) lines before and after the problem line number.
-     * @return array Highlight information as an array, the following keys are supplied:
+     * getHighlight generates information used for highlighting the area of code in context of the
+     * exception line number. The highlighted block of code will be six (6) lines before and after
+     * the problem line number.
+     * @return object Highlight information as an array, the following keys are supplied:
      * startLine - The starting line number, 6 lines before the error line.
      * endLine - The ending line number, 6 lines after the error line.
      * errorLine - The focused error line number.
@@ -189,12 +201,12 @@ class ExceptionBase extends Exception
             $result['lines'][$startLine + $index] = $line;
         }
 
-        return $this->highlight = (object)$result;
+        return $this->highlight = (object) $result;
     }
-    
+
     /**
-     * Returns an array of line numbers used for highlighting the problem area of code.
-     * This will be six (6) lines before and after the error line number.
+     * getHighlightLines returns an array of line numbers used for highlighting the problem area
+     * of code. This will be six (6) lines before and after the error line number.
      * @return array Array of code lines.
      */
     public function getHighlightLines()
@@ -207,7 +219,7 @@ class ExceptionBase extends Exception
     }
 
     /**
-     * Returns the call stack as an array of values containing a stack information object.
+     * getCallStack returns the call stack as an array containing a stack information object.
      * @return Array with stack information, each value will be an object with these values:
      * id - The stack ID number.
      * code - The class and function name being called.
@@ -251,7 +263,7 @@ class ExceptionBase extends Exception
     }
 
     /**
-     * Removes the final steps of a call stack, which add no value for the user.
+     * filterCallStack removes the final steps of a call stack, which add no value for the user.
      * The following exceptions and any trace information afterwards will be filtered:
      * - Illuminate\Foundation\Bootstrap\HandleExceptions
      *
@@ -267,8 +279,8 @@ class ExceptionBase extends Exception
         foreach ($traceInfo as $event) {
             if (
                 isset($event['class']) &&
-                $event['class'] == 'Illuminate\Foundation\Bootstrap\HandleExceptions' &&
-                $event['function'] == 'handleError'
+                $event['class'] === 'Illuminate\Foundation\Bootstrap\HandleExceptions' &&
+                $event['function'] === 'handleError'
             ) {
                 $useFilter = true;
             }
@@ -286,8 +298,8 @@ class ExceptionBase extends Exception
              */
             if (
                 isset($event['class']) &&
-                $event['class'] == 'Illuminate\Foundation\Bootstrap\HandleExceptions' &&
-                $event['function'] == 'handleError'
+                $event['class'] === 'Illuminate\Foundation\Bootstrap\HandleExceptions' &&
+                $event['function'] === 'handleError'
             ) {
                 $pruneResult = false;
                 continue;
@@ -304,7 +316,7 @@ class ExceptionBase extends Exception
     }
 
     /**
-     * Prepares a function or method argument list for display in HTML or text format
+     * formatStackArguments prepares a function or method argument list for display in HTML or text format
      * @param array $arguments A list of the function or method arguments
      * @return string
      */

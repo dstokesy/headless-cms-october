@@ -1,46 +1,57 @@
 <?php namespace October\Rain\Database\Models;
 
-use Db;
+use Event;
 use Carbon\Carbon;
 use October\Rain\Database\Model;
-use Exception;
+use Throwable;
 
 /**
- * Deferred Binding Model
+ * DeferredBinding Model
  *
  * @package october\database
  * @author Alexey Bobkov, Samuel Georges
  */
 class DeferredBinding extends Model
 {
+    use \October\Rain\Database\Traits\Nullable;
+
     /**
-     * @var string The database table used by the model.
+     * @var string table associated with the model
      */
     public $table = 'deferred_bindings';
 
     /**
-     * Prevents duplicates and conflicting binds.
+     * @var array jsonable attribute names that are json encoded and decoded from the database
+     */
+    protected $jsonable = ['pivot_data'];
+
+    /**
+     * @var array nullable attribute names which should be set to null when empty
+     */
+    protected $nullable = ['pivot_data'];
+
+    /**
+     * beforeCreate prevents duplicates and conflicting binds
      */
     public function beforeCreate()
     {
-        if ($existingRecord = $this->findBindingRecord()) {
-            /*
-             * Remove add-delete pairs
-             */
-            if ($this->is_bind != $existingRecord->is_bind) {
-                $existingRecord->deleteCancel();
-                return false;
-            }
+        $existingRecord = $this->findBindingRecord();
+        if (!$existingRecord) {
+            return;
+        }
 
-            /*
-             * Skip repeating bindings
-             */
+        // Remove add-delete pairs
+        if ((bool) $this->is_bind !== (bool) $existingRecord->is_bind) {
+            $existingRecord->deleteCancel();
             return false;
         }
+
+        // Skip repeating bindings
+        return false;
     }
 
     /**
-     * Finds a duplicate binding record.
+     * findBindingRecord finds a duplicate binding record
      */
     protected function findBindingRecord()
     {
@@ -54,13 +65,14 @@ class DeferredBinding extends Model
     }
 
     /**
-     * Cancel all deferred bindings to this model.
+     * cancelDeferredActions cancels all deferred bindings to this model
      */
     public static function cancelDeferredActions($masterType, $sessionKey)
     {
         $records = self::where('master_type', $masterType)
             ->where('session_key', $sessionKey)
-            ->get();
+            ->get()
+        ;
 
         foreach ($records as $record) {
             $record->deleteCancel();
@@ -68,7 +80,21 @@ class DeferredBinding extends Model
     }
 
     /**
-     * Delete this binding and cancel is actions
+     * cleanUp orphan bindings
+     */
+    public static function cleanUp($days = 5)
+    {
+        $timestamp = Carbon::now()->subDays($days)->toDateTimeString();
+
+        $records = self::where('created_at', '<', $timestamp)->get();
+
+        foreach ($records as $record) {
+            $record->deleteCancel();
+        }
+    }
+
+    /**
+     * deleteCancel deletes this binding and cancel is actions
      */
     public function deleteCancel()
     {
@@ -77,32 +103,38 @@ class DeferredBinding extends Model
     }
 
     /**
-     * Clean up orphan bindings.
-     */
-    public static function cleanUp($days = 5)
-    {
-        $records = self::where('created_at', '<', Carbon::now()->subDays($days)->toDateTimeString())->get();
-
-        foreach ($records as $record) {
-            $record->deleteCancel();
-        }
-    }
-
-    /**
-     * Logic to cancel a bindings action.
+     * deleteSlaveRecord is logic to cancel a binding action
      */
     protected function deleteSlaveRecord()
     {
-        /*
-         * Try to delete unbound hasOne/hasMany records from the details table
-         */
-        try {
-            if (!$this->is_bind) {
-                return;
-            }
+        if (!$this->is_bind) {
+            return;
+        }
 
+        // Try to delete unbound hasOne/hasMany records from the details table
+        try {
             $masterType = $this->master_type;
-            $masterObject = new $masterType();
+            $masterObject = new $masterType;
+
+            /**
+             * @event deferredBinding.newMasterInstance
+             * Called after the model is initialized when deleting the slave record
+             *
+             * Example usage:
+             *
+             *     $model->bindEvent('deferredBinding.newMasterInstance', function ((\Model) $model) {
+             *         if ($model instanceof MyModel) {
+             *             $model->some_attribute = true;
+             *         }
+             *     });
+             *
+             */
+            if (
+                ($event = $this->fireEvent('deferredBinding.newMasterInstance', [$masterObject], true)) ||
+                ($event = Event::fire('deferredBinding.newMasterInstance', [$this, $masterObject], true))
+            ) {
+                $masterObject = $event;
+            }
 
             if (!$masterObject->isDeferrable($this->master_field)) {
                 return;
@@ -115,19 +147,17 @@ class DeferredBinding extends Model
             }
 
             $options = $masterObject->getRelationDefinition($this->master_field);
-
             if (!array_get($options, 'delete', false)) {
                 return;
             }
 
+            // Only delete it if the relationship is null
             $foreignKey = array_get($options, 'key', $masterObject->getForeignKey());
-
-            // Only delete it if the relationship is null.
             if (!$relatedObj->$foreignKey) {
                 $relatedObj->delete();
             }
         }
-        catch (Exception $ex) {
+        catch (Throwable $ex) {
             // Do nothing
         }
     }

@@ -1,11 +1,11 @@
 <?php namespace October\Rain\Database\Traits;
 
-use Exception;
 use October\Rain\Database\Collection;
 use October\Rain\Database\TreeCollection;
+use Exception;
 
 /**
- * Simple Tree model trait
+ * SimpleTree model trait
  *
  * Simple tree implementation, for advanced implementation see:
  * October\Rain\Database\Traits\NestedTree
@@ -36,33 +36,32 @@ use October\Rain\Database\TreeCollection;
  *
  *   const PARENT_ID = 'my_parent_column';
  *
+ * @package october\database
+ * @author Alexey Bobkov, Samuel Georges
  */
 trait SimpleTree
 {
-
-    /*
-     * Constructor
+    /**
+     * initializeSimpleTree constructor
      */
-    public static function bootSimpleTree()
+    public function initializeSimpleTree()
     {
-        static::extend(function ($model) {
-            /*
-             * Define relationships
-             */
-            $model->hasMany['children'] = [
-                get_class($model),
-                'key' => $model->getParentColumnName()
-            ];
+        // Define relationships
+        $this->hasMany['children'] = [
+            get_class($this),
+            'key' => $this->getParentColumnName(),
+            'replicate' => false
+        ];
 
-            $model->belongsTo['parent'] = [
-                get_class($model),
-                'key' => $model->getParentColumnName()
-            ];
-        });
+        $this->belongsTo['parent'] = [
+            get_class($this),
+            'key' => $this->getParentColumnName(),
+            'replicate' => false
+        ];
     }
 
     /**
-     * Returns all nodes and children.
+     * getAll returns all nodes and children.
      * @return \October\Rain\Database\Collection
      */
     public function getAll()
@@ -77,7 +76,7 @@ trait SimpleTree
     }
 
     /**
-     * Get a list of children records, with their children (recursive)
+     * getAllChildren gets a list of children records, with their children (recursive)
      * @return \October\Rain\Database\Collection
      */
     public function getAllChildren()
@@ -98,7 +97,7 @@ trait SimpleTree
     }
 
     /**
-     * Returns direct child nodes.
+     * getChildren returns direct child nodes.
      * @return \October\Rain\Database\Collection
      */
     public function getChildren()
@@ -107,7 +106,7 @@ trait SimpleTree
     }
 
     /**
-     * Returns number of all children below it.
+     * getChildCount returns number of all children below it.
      * @return int
      */
     public function getChildCount()
@@ -120,7 +119,7 @@ trait SimpleTree
     //
 
     /**
-     * Returns a list of all root nodes, without eager loading.
+     * scopeGetAllRoot returns a list of all root nodes, without eager loading.
      * @return \October\Rain\Database\Collection
      */
     public function scopeGetAllRoot($query)
@@ -129,8 +128,8 @@ trait SimpleTree
     }
 
     /**
-     * Non chaining scope, returns an eager loaded hierarchy tree. Children are
-     * eager loaded inside the $model->children relation.
+     * scopeGetNested is a non-chaining scope, returns an eager loaded hierarchy tree.
+     * Children are eager loaded inside the $model->children relation.
      * @return Collection A collection
      */
     public function scopeGetNested($query)
@@ -139,7 +138,8 @@ trait SimpleTree
     }
 
     /**
-     * Gets an array with values of a given column. Values are indented according to their depth.
+     * scopeListsNested gets an array with values of a given column. Values are indented
+     * according to their depth.
      * @param  string $column Array values
      * @param  string $key    Array keys
      * @param  string $indent Character to indent depth
@@ -157,9 +157,7 @@ trait SimpleTree
 
         $collection = $query->getQuery()->get($columns);
 
-        /*
-         * Assign all child nodes to their parents
-         */
+        // Assign all child nodes to their parents
         $pairMap = [];
         $rootItems = [];
         foreach ($collection as $record) {
@@ -174,10 +172,8 @@ trait SimpleTree
             }
         }
 
-        /*
-         * Recursive helper function
-         */
-        $buildCollection = function (
+        // Recursive helper function
+        $buildCollection = function(
             $items,
             $map,
             $depth = 0
@@ -186,8 +182,7 @@ trait SimpleTree
             $column,
             $key,
             $indent,
-            $idName,
-            $parentName
+            $idName
         ) {
             $result = [];
 
@@ -205,9 +200,7 @@ trait SimpleTree
                     $result[] = $indentString . $item->{$column};
                 }
 
-                /*
-                 * Add the children
-                 */
+                // Add the children
                 $childItems = array_get($map, $item->{$idName}, []);
                 if (count($childItems) > 0) {
                     $result = $result + $buildCollection($childItems, $map, $depth + 1);
@@ -217,18 +210,12 @@ trait SimpleTree
             return $result;
         };
 
-        /*
-         * Build a nested collection
-         */
+        // Build a nested collection
         return $buildCollection($rootItems, $pairMap);
     }
 
-    //
-    // Column getters
-    //
-
     /**
-     * Get parent column name.
+     * getParentColumnName
      * @return string
      */
     public function getParentColumnName()
@@ -237,7 +224,7 @@ trait SimpleTree
     }
 
     /**
-     * Get fully qualified parent column name.
+     * getQualifiedParentColumnName
      * @return string
      */
     public function getQualifiedParentColumnName()
@@ -246,7 +233,7 @@ trait SimpleTree
     }
 
     /**
-     * Get value of the model parent_id column.
+     * getParentId gets value of the model parent_id column.
      * @return int
      */
     public function getParentId()
@@ -255,7 +242,7 @@ trait SimpleTree
     }
 
     /**
-     * Return a custom TreeCollection collection
+     * newCollection returns a custom TreeCollection collection.
      */
     public function newCollection(array $models = [])
     {

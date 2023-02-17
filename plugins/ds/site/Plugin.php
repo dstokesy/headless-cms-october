@@ -1,6 +1,7 @@
 <?php namespace Ds\Site;
 
 use Backend;
+use RainLab\Blog\Models\Post;
 use System\Classes\PluginBase;
 use System\Classes\PluginManager;
 use RainLab\Pages\Controllers\Index as StaticPageController;
@@ -32,7 +33,7 @@ class Plugin extends PluginBase
      */
     public function register()
     {
-        
+
     }
 
     /**
@@ -43,6 +44,7 @@ class Plugin extends PluginBase
     public function boot()
     {
         $this->hideStaticPageSecondaryTabs();
+        $this->extendBlogPostModel();
     }
 
     public function hideStaticPageSecondaryTabs()
@@ -53,5 +55,20 @@ class Plugin extends PluginBase
                 $widget->addCss('/plugins/ds/site/assets/css/backend.css');
             });
         }
+    }
+
+    public function extendBlogPostModel()
+    {
+        Post::extend(function($model) {
+            $model->addDynamicMethod('getImageAttribute', function() use($model) {
+                $image = $model->featured_images->first();
+
+                if ($image) {
+                    return $image->getThumbUrl(570, 350, ['mode' => 'crop']);
+                }
+
+                return false;
+            });
+        });
     }
 }

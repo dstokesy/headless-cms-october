@@ -1,43 +1,43 @@
 <?php namespace October\Rain\Halcyon\Datasource;
 
 use Db;
-use Exception;
-use Carbon\Carbon;
 use October\Rain\Halcyon\Processors\Processor;
 use October\Rain\Halcyon\Exception\CreateFileException;
 use October\Rain\Halcyon\Exception\DeleteFileException;
 use October\Rain\Halcyon\Exception\FileExistsException;
+use Carbon\Carbon;
+use Exception;
 
 /**
- * Database based data source
+ * DbDatasource looks at the database for templates
  *
- * Table Structure:
- *  - id, unsigned integer
- *  - source, varchar
- *  - path, varchar
- *  - content, longText
- *  - file_size, unsigned integer // In bytes - NOTE: max file size of 4.29 GB represented with unsigned int in MySQL
- *  - updated_at, datetime
- *  - deleted_at, datetime, nullable
+ * @package october\halcyon
+ * @author Alexey Bobkov, Samuel Georges
  */
 class DbDatasource extends Datasource implements DatasourceInterface
 {
     /**
-     * @var string The identifier for this datasource instance
+     * @var string source identifier for this datasource instance
      */
     protected $source;
 
     /**
-     * @var string The table name of the datasource
+     * @var string table name of the datasource
      */
     protected $table;
 
     /**
-     * Create a new datasource instance.
-     *
-     * @param string $source The source identifier for this datasource instance
-     * @param string $table The table for this database datasource
-     * @return void
+     * @var array pathCache
+     */
+    protected static $pathCache = [];
+
+    /**
+     * @var array|null mtimeCache
+     */
+    protected static $mtimeCache = [];
+
+    /**
+     * __construct a new datasource instance
      */
     public function __construct(string $source, string $table)
     {
@@ -49,110 +49,54 @@ class DbDatasource extends Datasource implements DatasourceInterface
     }
 
     /**
-     * Get the base QueryBuilder object
+     * hasTemplate checks if a template is found in the datasource
      */
-    public function getBaseQuery()
+    public function hasTemplate(string $dirName, string $fileName, string $extension): bool
     {
-        return Db::table($this->table)->enableDuplicateCache();
+        return (bool) $this->lastModified($dirName, $fileName, $extension);
     }
 
     /**
-     * Get the QueryBuilder object
-     *
-     * @param bool $ignoreDeleted Flag to ignore deleted records, defaults to true
-     * @return QueryBuilder
-     */
-    public function getQuery($ignoreDeleted = true)
-    {
-        $query = $this->getBaseQuery();
-
-        $query->where('source', $this->source);
-
-        if ($ignoreDeleted) {
-            $query->whereNull('deleted_at');
-        }
-
-        /**
-         * @event halcyon.datasource.db.extendQuery
-         * Provides an opportunity to modify the query object used by the Halycon DbDatasource
-         *
-         * Example usage:
-         *
-         *     $datasource->bindEvent('halcyon.datasource.db.extendQuery', function ((QueryBuilder) $query, (bool) $ignoreDeleted) {
-         *         // Apply a site filter in a multi-tenant application
-         *         $query->where('site_id', SiteManager::getSite()->id);
-         *     });
-         *
-         */
-        $this->fireEvent('halcyon.datasource.db.extendQuery', [$query, $ignoreDeleted]);
-
-        return $query;
-    }
-
-    /**
-     * Helper to make file path.
-     *
-     * @param string $dirName
-     * @param string $fileName
-     * @param string $extension
-     * @return string
-     */
-    protected function makeFilePath(string $dirName, string $fileName, string $extension)
-    {
-        return $dirName . '/' . $fileName . '.' . $extension;
-    }
-
-    /**
-     * Returns a single template.
-     *
-     * @param  string  $dirName
-     * @param  string  $fileName
-     * @param  string  $extension
-     * @return mixed
+     * selectOne returns a single template
      */
     public function selectOne(string $dirName, string $fileName, string $extension)
     {
-        $result = $this->getQuery()->where('path', $this->makeFilePath($dirName, $fileName, $extension))->first();
+        $path = $this->makeFilePath($dirName, $fileName, $extension);
 
-        if ($result) {
-            return [
-                'fileName' => $fileName . '.' . $extension,
-                'content'  => $result->content,
-                'mtime'    => Carbon::parse($result->updated_at)->timestamp,
-                'record'   => $result,
-            ];
-        } else {
+        if (isset(self::$pathCache[$this->source][$path])) {
+            $result = self::$pathCache[$this->source][$path];
+        }
+        else {
+            $result = $this->getQuery()->where('path', $path)->first();
+        }
+
+        if (!$result) {
             return $result;
         }
+
+        return [
+            'fileName' => $fileName . '.' . $extension,
+            'content' => $result->content,
+            'mtime' => Carbon::parse($result->updated_at)->timestamp,
+            'record' => $result
+        ];
     }
 
     /**
-     * Returns all templates.
+     * select returns all templates, with availableoptions:
      *
-     * @param  string  $dirName
-     * @param array $options Array of options, [
-     *                          'columns'    => ['fileName', 'mtime', 'content'], // Only return specific columns
-     *                          'extensions' => ['htm', 'md', 'twig'],            // Extensions to search for
-     *                          'fileMatch'  => '*gr[ae]y',                       // Shell matching pattern to match the filename against using the fnmatch function
-     *                          'orders'     => false                             // Not implemented
-     *                          'limit'      => false                             // Not implemented
-     *                          'offset'     => false                             // Not implemented
-     *                      ];
-     * @return array
+     * - columns: only return specific columns, eg: ['fileName', 'mtime', 'content']
+     * - extensions: extensions to search for, eg: ['htm', 'md', 'twig']
+     * - fileMatch: pattern to match the filename against using the fnmatch function, eg: *gr[ae]y
      */
-    public function select(string $dirName, array $options = [])
+    public function select(string $dirName, array $options = []): array
     {
-        // Initialize result set
         $result = [];
 
-        // Prepare query options
         extract(array_merge([
-            'columns'     => null,  // Only return specific columns (fileName, mtime, content)
-            'extensions'  => null,  // Match specified extensions
-            'fileMatch'   => null,  // Match the file name using fnmatch()
-            'orders'      => null,  // @todo
-            'limit'       => null,  // @todo
-            'offset'      => null   // @todo
+            'columns' => null,
+            'extensions' => null,
+            'fileMatch' => null,
         ], $options));
 
         if ($columns === ['*'] || !is_array($columns)) {
@@ -180,6 +124,8 @@ class DbDatasource extends Datasource implements DatasourceInterface
         $results = $query->get();
 
         foreach ($results as $item) {
+            self::$pathCache[$this->source][$item->path] = $item;
+
             $resultItem = [];
             $fileName = ltrim(str_replace($dirName, '', $item->path), '/');
 
@@ -189,14 +135,15 @@ class DbDatasource extends Datasource implements DatasourceInterface
             }
 
             // Apply the columns filter on the data returned
-            if (is_null($columns)) {
+            if ($columns === null) {
                 $resultItem = [
                     'fileName' => $fileName,
-                    'content'  => $item->content,
-                    'mtime'    => Carbon::parse($item->updated_at)->timestamp,
-                    'record'   => $item,
+                    'content' => $item->content,
+                    'mtime' => Carbon::parse($item->updated_at)->timestamp,
+                    'record' => $item,
                 ];
-            } else {
+            }
+            else {
                 if (in_array('fileName', $columns)) {
                     $resultItem['fileName'] = $fileName;
                 }
@@ -221,34 +168,27 @@ class DbDatasource extends Datasource implements DatasourceInterface
     }
 
     /**
-     * Creates a new template.
-     *
-     * @param  string  $dirName
-     * @param  string  $fileName
-     * @param  string  $extension
-     * @param  string  $content
-     * @return bool
+     * insert creates a new template
      */
-    public function insert(string $dirName, string $fileName, string $extension, string $content)
+    public function insert(string $dirName, string $fileName, string $extension, string $content): bool
     {
         $path = $this->makeFilePath($dirName, $fileName, $extension);
 
-        // Check for an existing record
         if ($this->getQuery()->where('path', $path)->count() > 0) {
             throw (new FileExistsException())->setInvalidPath($path);
         }
 
-        // Check for a deleted record, update it if it exists instead
+        // Update a trashed record
         if ($this->getQuery(false)->where('path', $path)->first()) {
             return $this->update($dirName, $fileName, $extension, $content);
         }
 
         try {
             $record = [
-                'source'     => $this->source,
-                'path'       => $path,
-                'content'    => $content,
-                'file_size'  => mb_strlen($content, '8bit'),
+                'source' => $this->source,
+                'path' => $path,
+                'content' => $content,
+                'file_size' => mb_strlen($content, '8bit'),
                 'updated_at' => Carbon::now()->toDateTimeString(),
                 'deleted_at' => null,
             ];
@@ -267,8 +207,9 @@ class DbDatasource extends Datasource implements DatasourceInterface
              */
             $this->fireEvent('halcyon.datasource.db.beforeInsert', [&$record]);
 
-            // Get a raw query without filters applied to it
             $this->getBaseQuery()->insert($record);
+
+            $this->flushCache();
 
             return $record['file_size'];
         }
@@ -278,40 +219,31 @@ class DbDatasource extends Datasource implements DatasourceInterface
     }
 
     /**
-     * Updates an existing template.
-     *
-     * @param  string  $dirName
-     * @param  string  $fileName
-     * @param  string  $extension
-     * @param  string  $content
-     * @param  string  $oldFileName Defaults to null
-     * @param  string  $oldExtension Defaults to null
-     * @return int
+     * update an existing template
      */
-    public function update(string $dirName, string $fileName, string $extension, string $content, $oldFileName = null, $oldExtension = null)
+    public function update(string $dirName, string $fileName, string $extension, string $content, $oldFileName = null, $oldExtension = null): int
     {
         $path = $this->makeFilePath($dirName, $fileName, $extension);
 
         // Check if this file has been renamed
-        if (!is_null($oldFileName)) {
+        if ($oldFileName !== null) {
             $fileName = $oldFileName;
         }
-        if (!is_null($oldExtension)) {
+        if ($oldExtension !== null) {
             $extension = $oldExtension;
         }
 
         $oldPath = $this->makeFilePath($dirName, $fileName, $extension);
 
-        // Update the existing record
         try {
             $fileSize = mb_strlen($content, '8bit');
 
             $data = [
-                'path'       => $path,
-                'content'    => $content,
-                'file_size'  => $fileSize,
+                'path' => $path,
+                'content' => $content,
+                'file_size' => $fileSize,
                 'updated_at' => Carbon::now()->toDateTimeString(),
-                'deleted_at' => null,
+                'deleted_at' => null
             ];
 
             /**
@@ -330,6 +262,8 @@ class DbDatasource extends Datasource implements DatasourceInterface
 
             $this->getQuery(false)->where('path', $oldPath)->update($data);
 
+            $this->flushCache();
+
             return $fileSize;
         }
         catch (Exception $ex) {
@@ -338,33 +272,24 @@ class DbDatasource extends Datasource implements DatasourceInterface
     }
 
     /**
-     * Run a delete statement against the datasource.
-     *
-     * @param  string  $dirName
-     * @param  string  $fileName
-     * @param  string  $extension
-     * @return bool
+     * delete against the datasource
      */
-    public function delete(string $dirName, string $fileName, string $extension)
+    public function delete(string $dirName, string $fileName, string $extension): bool
     {
         try {
-            // Get the existing record
             $path = $this->makeFilePath($dirName, $fileName, $extension);
             $recordQuery = $this->getQuery()->where('path', $path);
 
-            // Attempt to delete the existing record
             if ($this->forceDeleting) {
                 $result = $recordQuery->delete();
-            } else {
+            }
+            else {
                 $result = $recordQuery->update(['deleted_at' => Carbon::now()->toDateTimeString()]);
             }
 
-            // Throw an exception if there were no records affected by this query
-            if (!$result) {
-                throw new Exception('No records were affected!');
-            }
+            $this->flushCache();
 
-            return true;
+            return (bool) $result;
         }
         catch (Exception $ex) {
             throw (new DeleteFileException)->setInvalidPath($path);
@@ -372,19 +297,22 @@ class DbDatasource extends Datasource implements DatasourceInterface
     }
 
     /**
-     * Return the last modified date of an object
-     *
-     * @param  string  $dirName
-     * @param  string  $fileName
-     * @param  string  $extension
-     * @return int
+     * lastModified date of an object
      */
-    public function lastModified(string $dirName, string $fileName, string $extension)
+    public function lastModified(string $dirName, string $fileName, string $extension): ?int
     {
         try {
-            return Carbon::parse($this->getQuery()
-                    ->where('path', $this->makeFilePath($dirName, $fileName, $extension))
-                    ->first()->updated_at)->timestamp;
+            if (!isset(self::$mtimeCache[$this->source])) {
+                self::$mtimeCache[$this->source] = $this->getQuery()->pluck('updated_at', 'path')->all();
+            }
+
+            $path = $this->makeFilePath($dirName, $fileName, $extension);
+            if (!isset(self::$mtimeCache[$this->source][$path])) {
+                return null;
+            }
+
+            $result = self::$mtimeCache[$this->source][$path];
+            return Carbon::parse($result)->timestamp;
         }
         catch (Exception $ex) {
             return null;
@@ -392,58 +320,64 @@ class DbDatasource extends Datasource implements DatasourceInterface
     }
 
     /**
-     * Generate a cache key unique to this datasource.
-     *
-     * @param  string  $name
-     * @return string
+     * makeCacheKey unique to this datasource
      */
-    public function makeCacheKey($name = '')
+    public function makeCacheKey(string $name = ''): string
     {
-        return crc32($this->source . $name);
+        return (string) crc32($this->source . $name);
     }
 
     /**
-     * Generate a paths cache key unique to this datasource
-     *
-     * @return string
+     * getBaseQuery builder object
      */
-    public function getPathsCacheKey()
+    protected function getBaseQuery()
     {
-        return 'halcyon-datastore-db-' . $this->table . '-' . $this->source;
+        return Db::table($this->table);
     }
 
     /**
-     * Get all available paths within this datastore
-     *
-     * @return array $paths ['path/to/file1.md' => true (path can be handled and exists), 'path/to/file2.md' => false (path can be handled but doesn't exist)]
+     * getQuery object
      */
-    public function getAvailablePaths()
+    protected function getQuery(bool $withTrashed = true)
     {
+        $query = $this->getBaseQuery();
+        $query->where('source', $this->source);
+
+        if ($withTrashed) {
+            $query->whereNull('deleted_at');
+        }
+
         /**
-         * @event halcyon.datasource.db.beforeGetAvailablePaths
-         * Halting event called before the cache of what paths are available in the DB is built
+         * @event halcyon.datasource.db.extendQuery
+         * Provides an opportunity to modify the query object used by the Halycon DbDatasource
          *
          * Example usage:
          *
-         *     $datasource->bindEvent('halcyon.datasource.db.beforeGetAvailablePaths', function () use ($datastore) {
-         *         return ['path/to/file/that/exists' => true, 'path/to/file/that/is/deleted' => false];
+         *     $datasource->bindEvent('halcyon.datasource.db.extendQuery', function ((QueryBuilder) $query, (bool) $withTrashed) {
+         *         // Apply a site filter in a multi-tenant application
+         *         $query->where('site_id', SiteManager::getSite()->id);
          *     });
          *
          */
-        if (!$pathsCache = $this->fireEvent('halcyon.datasource.db.beforeGetAvailablePaths', [], true)) {
-            // Only query for what is required
-            $this->bindEventOnce('halcyon.datasource.db.extendQuery', function ($query, $ignoreDeleted) {
-                $query->addSelect('source', 'path', 'deleted_at');
-            });
+        $this->fireEvent('halcyon.datasource.db.extendQuery', [$query, $withTrashed]);
 
-            // Get all records stored in the DB
-            $records = $this->getQuery(false)->get();
+        return $query;
+    }
 
-            foreach ($records as $record) {
-                $pathsCache[$record->path] = !$record->deleted_at;
-            }
-        }
+    /**
+     * makeFilePath helper to make file path
+     */
+    protected function makeFilePath(string $dirName, string $fileName, string $extension): string
+    {
+        return $dirName . '/' . $fileName . '.' . $extension;
+    }
 
-        return (array) $pathsCache;
+    /**
+     * flushCache
+     */
+    protected function flushCache()
+    {
+        unset(self::$pathCache[$this->source]);
+        unset(self::$mtimeCache[$this->source]);
     }
 }

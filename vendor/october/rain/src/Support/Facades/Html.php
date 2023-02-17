@@ -3,6 +3,8 @@
 use October\Rain\Support\Facade;
 
 /**
+ * Html
+ *
  * @method static string entities(string $value)
  * @method static string decode(string $value)
  * @method static string script(string $url, array $attributes, bool $secure = null)
@@ -29,8 +31,7 @@ use October\Rain\Support\Facade;
 class Html extends Facade
 {
     /**
-     * Get the registered name of the component.
-     *
+     * getFacadeAccessor returns the registered name of the component
      * @return string
      */
     protected static function getFacadeAccessor()

@@ -3,6 +3,8 @@
 use October\Rain\Support\Facade;
 
 /**
+ * Flash
+ *
  * @method static bool check()
  * @method static array all(string $format = null)
  * @method static array get(string $key, string $format = null)
@@ -20,8 +22,7 @@ use October\Rain\Support\Facade;
 class Flash extends Facade
 {
     /**
-     * Get the registered name of the component.
-     *
+     * getFacadeAccessor returns the registered name of the component
      * @return string
      */
     protected static function getFacadeAccessor()

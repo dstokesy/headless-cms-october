@@ -1,0 +1,55 @@
+items:
+    -
+        title: Home
+        nesting: 0
+        type: static-page
+        code: ''
+        reference: home
+        replace: 0
+        viewBag:
+            isHidden: '0'
+            cssClass: ''
+            isExternal: '0'
+    -
+        title: Frontend
+        nesting: 0
+        type: static-page
+        code: ''
+        reference: frontend
+        replace: 0
+        viewBag:
+            isHidden: '0'
+            cssClass: ''
+            isExternal: '0'
+    -
+        title: CMS
+        nesting: 0
+        type: static-page
+        code: ''
+        reference: cms
+        replace: 0
+        viewBag:
+            isHidden: '0'
+            cssClass: ''
+            isExternal: '0'
+    -
+        title: Blog
+        type: url
+        url: /blog
+        code: ''
+        viewBag:
+            isHidden: '0'
+            cssClass: ''
+            isExternal: '0'
+    -
+        title: Contact
+        nesting: 0
+        type: static-page
+        code: ''
+        reference: contact
+        replace: 0
+        viewBag:
+            isHidden: '0'
+            cssClass: ''
+            isExternal: '0'
+name: Navigation

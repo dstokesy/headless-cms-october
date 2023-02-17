@@ -3,6 +3,8 @@
 use October\Rain\Support\Facade;
 
 /**
+ * Block
+ *
  * @method static void put(string $name)
  * @method static void startBlock(string $name)
  * @method static void endPut(bool $append = false)
@@ -18,8 +20,7 @@ use October\Rain\Support\Facade;
 class Block extends Facade
 {
     /**
-     * Get the registered name of the component.
-     *
+     * getFacadeAccessor returns the registered name of the component
      * @return string
      */
     protected static function getFacadeAccessor()

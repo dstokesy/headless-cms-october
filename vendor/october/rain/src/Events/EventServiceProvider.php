@@ -1,14 +1,19 @@
 <?php namespace October\Rain\Events;
 
+use October\Rain\Events\Dispatcher;
 use Illuminate\Support\ServiceProvider;
 use Illuminate\Contracts\Queue\Factory as QueueFactoryContract;
 
+/**
+ * EventServiceProvider
+ *
+ * @package october\events
+ * @author Alexey Bobkov, Samuel Georges
+ */
 class EventServiceProvider extends ServiceProvider
 {
     /**
-     * Register the service provider.
-     *
-     * @return void
+     * register the service provider
      */
     public function register()
     {
@@ -16,6 +21,10 @@ class EventServiceProvider extends ServiceProvider
             return (new Dispatcher($app))->setQueueResolver(function () use ($app) {
                 return $app->make(QueueFactoryContract::class);
             });
+        });
+
+        $this->app->singleton('events.priority', function ($app) {
+            return (new PriorityDispatcher)->setLaravelDispatcher($app['events']);
         });
     }
 }

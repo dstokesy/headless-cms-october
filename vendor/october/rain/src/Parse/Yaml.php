@@ -1,10 +1,11 @@
 <?php namespace October\Rain\Parse;
 
 use Cache;
-use Config;
+use Symfony\Component\Yaml\Yaml as YamlComponent;
 use Symfony\Component\Yaml\Dumper;
 use Symfony\Component\Yaml\Parser;
 use Symfony\Component\Yaml\Exception\ParseException;
+use Exception;
 
 /**
  * Yaml helper class
@@ -15,46 +16,66 @@ use Symfony\Component\Yaml\Exception\ParseException;
 class Yaml
 {
     /**
-     * Parses supplied YAML contents in to a PHP array.
+     * parse supplied YAML contents in to a PHP array.
      * @param string $contents YAML contents to parse.
      * @return array The YAML contents as an array.
      */
     public function parse($contents)
     {
         $yaml = new Parser;
+
         return $yaml->parse($contents);
     }
 
     /**
-     * Parses YAML file contents in to a PHP array.
+     * parseFile parses YAML file contents in to a PHP array.
      * @param string $fileName File to read contents and parse.
      * @return array The YAML contents as an array.
      */
     public function parseFile($fileName)
     {
+        $contents = file_get_contents($fileName);
+
         try {
-            // Cache parsed yaml file if debug mode is disabled
-            if (!Config::get('app.debug', false)) {
-                return Cache::remember('yaml::' . $fileName . '-' . filemtime($fileName), now()->addDays(30), function () use ($fileName) {
-                    return $this->parse(file_get_contents($fileName));
-                });
-            } else {
-                return $this->parse(file_get_contents($fileName));
-            }
-        } catch (\Exception $e) {
-            throw new ParseException("A syntax error was detected in $fileName. " . $e->getMessage(), __LINE__, __FILE__);
+            $parsed = $this->parse($contents);
+        }
+        catch (Exception $ex) {
+            throw new ParseException("A syntax error was detected in $fileName. " . $ex->getMessage(), __LINE__, __FILE__);
+        }
+
+        return $parsed;
+    }
+
+    /**
+     * parseFileCached parses YAML file contents in to a PHP array, with cache.
+     * @param string $fileName File to read contents and parse.
+     * @return array The YAML contents as an array.
+     */
+    public function parseFileCached($fileName)
+    {
+        try {
+            $fileCacheKey = 'yaml::' . $fileName . '-' . filemtime($fileName);
+
+            return Cache::remember($fileCacheKey, 43200, function () use ($fileName) {
+                return $this->parseFile($fileName);
+            });
+        }
+        catch (Exception $ex) {
+            return $this->parseFile($fileName);
         }
     }
 
     /**
-     * Renders a PHP array to YAML format.
-     * @param array $vars
-     * @param array $options
+     * render a PHP array to YAML format.
      *
      * Supported options:
      * - inline: The level where you switch to inline YAML.
      * - exceptionOnInvalidType: if an exception must be thrown on invalid types.
      * - objectSupport: if object support is enabled.
+     *
+     * @param array $vars
+     * @param array $options
+     * @return string
      */
     public function render($vars = [], $options = [])
     {
@@ -64,7 +85,16 @@ class Yaml
             'objectSupport' => true,
         ], $options));
 
-        $yaml = new Dumper;
-        return $yaml->dump($vars, $inline, 0, $exceptionOnInvalidType, $objectSupport);
+        $flags = null;
+
+        if ($exceptionOnInvalidType) {
+            $flags |= YamlComponent::DUMP_EXCEPTION_ON_INVALID_TYPE;
+        }
+
+        if ($objectSupport) {
+            $flags |= YamlComponent::DUMP_OBJECT;
+        }
+
+        return (new Dumper)->dump($vars, $inline, 0, $flags);
     }
 }

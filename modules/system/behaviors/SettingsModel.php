@@ -1,18 +1,18 @@
 <?php namespace System\Behaviors;
 
-use App;
-use Artisan;
-use Cache;
 use Log;
+use Cache;
+use System;
+use Artisan;
 use Exception;
 use System\Classes\ModelBehavior;
 
 /**
- * Settings model extension
+ * SettingsModel extension
  *
  * Add this the model class definition:
  *
- *     public $implement = ['System.Behaviors.SettingsModel'];
+ *     public $implement = [\System\Behaviors\SettingsModel::class];
  *     public $settingsCode = 'author_plugin_code';
  *     public $settingsFields = 'fields.yaml';
  *
@@ -21,8 +21,19 @@ class SettingsModel extends ModelBehavior
 {
     use \System\Traits\ConfigMaker;
 
+    /**
+     * @var string recordCode
+     */
     protected $recordCode;
+
+    /**
+     * @var array fieldConfig
+     */
     protected $fieldConfig;
+
+    /**
+     * @var array fieldValues
+     */
     protected $fieldValues = [];
 
     /**
@@ -36,7 +47,7 @@ class SettingsModel extends ModelBehavior
     protected $requiredProperties = ['settingsFields', 'settingsCode'];
 
     /**
-     * Constructor
+     * __construct the settings instance
      */
     public function __construct($model)
     {
@@ -49,23 +60,19 @@ class SettingsModel extends ModelBehavior
 
         $this->configPath = $this->guessConfigPathFrom($model);
 
-        /*
-         * Access to model's overrides is unavailable, using events instead
-         */
+        // Access to model's overrides is unavailable, using events instead
         $this->model->bindEvent('model.afterFetch', [$this, 'afterModelFetch']);
         $this->model->bindEvent('model.beforeSave', [$this, 'beforeModelSave']);
         $this->model->bindEvent('model.afterSave', [$this, 'afterModelSave']);
         $this->model->bindEvent('model.setAttribute', [$this, 'setSettingsValue']);
         $this->model->bindEvent('model.saveInternal', [$this, 'saveModelInternal']);
 
-        /*
-         * Parse the config
-         */
+        // Parse the config
         $this->recordCode = $this->model->settingsCode;
     }
 
     /**
-     * Create an instance of the settings model, intended as a static method
+     * instance of the settings model, intended as a static method
      */
     public function instance()
     {
@@ -73,7 +80,8 @@ class SettingsModel extends ModelBehavior
             return self::$instances[$this->recordCode];
         }
 
-        if (!$item = $this->getSettingsRecord()) {
+        $item = $this->getSettingsRecord();
+        if (!$item) {
             $this->model->initSettingsData();
             $item = $this->model;
         }
@@ -82,32 +90,39 @@ class SettingsModel extends ModelBehavior
     }
 
     /**
-     * Reset the settings to their defaults, this will delete the record model
+     * resetDefault, this will delete the record model
      */
     public function resetDefault()
     {
-        if ($record = $this->getSettingsRecord()) {
-            $record->delete();
-            unset(self::$instances[$this->recordCode]);
-            Cache::forget($this->getCacheKey());
+        $record = $this->getSettingsRecord();
+        if (!$record) {
+            return;
         }
+
+        $record->delete();
+        unset(self::$instances[$this->recordCode]);
+        Cache::forget($this->getCacheKey());
     }
 
     /**
-     * Checks if the model has been set up previously, intended as a static method
+     * isConfigured checks if the model has been set up previously, intended as a static method
      * @return bool
      */
     public function isConfigured()
     {
-        return App::hasDatabase() && $this->getSettingsRecord() !== null;
+        return $this->getSettingsRecord() !== null;
     }
 
     /**
-     * Returns the raw Model record that stores the settings.
+     * getSettingsRecord returns the raw Model record that stores the settings.
      * @return Model
      */
     public function getSettingsRecord()
     {
+        if (!System::hasDatabase()) {
+            return null;
+        }
+
         $record = $this->model
             ->where('item', $this->recordCode)
             ->remember(1440, $this->getCacheKey())
@@ -117,18 +132,18 @@ class SettingsModel extends ModelBehavior
     }
 
     /**
-     * Set a single or array key pair of values, intended as a static method
+     * set a single or array key pair of values, intended as a static method
      */
     public function set($key, $value = null)
     {
         $data = is_array($key) ? $key : [$key => $value];
-        $obj = self::instance();
+        $obj = $this->instance();
         $obj->fill($data);
         return $obj->save();
     }
 
     /**
-     * Helper for getSettingsValue, intended as a static method
+     * get helper for getSettingsValue, intended as a static method
      */
     public function get($key, $default = null)
     {
@@ -136,7 +151,7 @@ class SettingsModel extends ModelBehavior
     }
 
     /**
-     * Get a single setting value, or return a default value
+     * getSettingsValue gets a single setting value, or return a default value
      */
     public function getSettingsValue($key, $default = null)
     {
@@ -148,7 +163,7 @@ class SettingsModel extends ModelBehavior
     }
 
     /**
-     * Set a single setting value, if allowed.
+     * setSettingsValue sets a single setting value, if allowed.
      */
     public function setSettingsValue($key, $value)
     {
@@ -160,34 +175,43 @@ class SettingsModel extends ModelBehavior
     }
 
     /**
-     * Default values to set for this model, override
+     * initSettingsData default values to set for this model, override
      */
     public function initSettingsData()
     {
     }
 
     /**
-     * Populate the field values from the database record.
+     * afterModelFetch populates the field values from the database record.
      */
     public function afterModelFetch()
     {
         $this->fieldValues = $this->model->value ?: [];
         $this->model->attributes = array_merge($this->fieldValues, $this->model->attributes);
+        $this->model->syncOriginal();
     }
 
     /**
-     * Internal save method for the model
+     * saveModelInternal method for the model
      * @return void
      */
     public function saveModelInternal()
     {
+        // Reset values from the attributes that may be manipulated elsewhere
+        if ($this->fieldValues) {
+            foreach ($this->fieldValues as $key => $val) {
+                if (array_key_exists($key, $this->model->attributes)) {
+                    $this->fieldValues[$key] = $this->model->attributes[$key];
+                }
+            }
+        }
+
         // Purge the field values from the attributes
         $this->model->attributes = array_diff_key($this->model->attributes, $this->fieldValues);
     }
 
     /**
-     * Before the model is saved, ensure the record code is set
-     * and the jsonable field values
+     * beforeModelSave, ensure the record code is set and the jsonable field values
      */
     public function beforeModelSave()
     {
@@ -198,7 +222,7 @@ class SettingsModel extends ModelBehavior
     }
 
     /**
-     * After the model is saved, clear the cached query entry
+     * afterModelSave, clear the cached query entry
      * and restart queue workers so they have the latest settings
      * @return void
      */
@@ -208,27 +232,24 @@ class SettingsModel extends ModelBehavior
 
         try {
             Artisan::call('queue:restart');
-        } catch (Exception $e) {
+        }
+        catch (Exception $e) {
             Log::warning($e->getMessage());
         }
     }
 
     /**
-     * Checks if a key is legitimate or should be added to
+     * isKeyAllowed checks if a key is legitimate or should be added to
      * the field value collection
      */
     protected function isKeyAllowed($key)
     {
-        /*
-         * Let the core columns through
-         */
+        // Let the core columns through
         if ($key == 'id' || $key == 'value' || $key == 'item') {
             return true;
         }
 
-        /*
-         * Let relations through
-         */
+        // Let relations through
         if ($this->model->hasRelation($key)) {
             return true;
         }
@@ -237,7 +258,7 @@ class SettingsModel extends ModelBehavior
     }
 
     /**
-     * Returns the field configuration used by this model.
+     * getFieldConfig returns the field configuration used by this model.
      */
     public function getFieldConfig()
     {
@@ -249,7 +270,7 @@ class SettingsModel extends ModelBehavior
     }
 
     /**
-     * Returns a cache key for this record.
+     * getCacheKey returns a cache key for this record.
      */
     protected function getCacheKey()
     {
@@ -257,7 +278,7 @@ class SettingsModel extends ModelBehavior
     }
 
     /**
-     * Clears the internal memory cache of model instances.
+     * clearInternalCache of model instances.
      * @return void
      */
     public static function clearInternalCache()

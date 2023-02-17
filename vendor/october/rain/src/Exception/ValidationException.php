@@ -1,67 +1,85 @@
 <?php namespace October\Rain\Exception;
 
-use Illuminate\Support\MessageBag;
+use Validator as ValidatorFacade;
+use Illuminate\Validation\ValidationException as ValidationExceptionBase;
 use Illuminate\Validation\Validator;
 use InvalidArgumentException;
-use Exception;
 
 /**
- * Validation exception class.
+ * ValidationException class
  *
  * @package october\exception
  * @author Alexey Bobkov, Samuel Georges
  */
-class ValidationException extends Exception
+class ValidationException extends ValidationExceptionBase
 {
-
     /**
-     * @var array Collection of invalid fields.
+     * @var array fields that are invalid
      */
     protected $fields;
 
     /**
-     * @var \Illuminate\Support\MessageBag The message bag instance containing validation error messages
+     * @var array fieldPrefix
+     */
+    protected $fieldPrefix = [];
+
+    /**
+     * @var \Illuminate\Support\MessageBag errors in the form of a message bag
      */
     protected $errors;
 
     /**
-     * Constructor.
+     * __construct the validation exception.
      */
     public function __construct($validation)
     {
-        parent::__construct();
+        parent::__construct($this->resolveToValidator($validation));
 
-        if (is_null($validation)) {
-            return;
-        }
-
-        if ($validation instanceof Validator) {
-            $this->errors = $validation->messages();
-        }
-        elseif (is_array($validation)) {
-            $this->errors = new MessageBag($validation);
-        }
-        else {
-            throw new InvalidArgumentException('ValidationException constructor requires instance of Validator or array');
-        }
+        $this->errors = $this->validator->errors();
 
         $this->evalErrors();
     }
 
     /**
-     * Evaluate errors.
+     * resolveToValidator resolves general input for the validation exception
+     * @param  mixed  $validation
+     */
+    protected function resolveToValidator($validation)
+    {
+        $validator = $validation;
+
+        if (is_null($validation)) {
+            $validator = ValidatorFacade::make([], []);
+        }
+        elseif (is_array($validation)) {
+            $validator = ValidatorFacade::make([], []);
+            $validator->errors()->merge($validation);
+        }
+
+        if (!$validator instanceof Validator) {
+            throw new InvalidArgumentException('ValidationException constructor requires instance of Validator or array');
+        }
+
+        return $validator;
+    }
+
+    /**
+     * evalErrors evaluates errors
      */
     protected function evalErrors()
     {
+        $this->fields = [];
+
         foreach ($this->errors->getMessages() as $field => $messages) {
-            $this->fields[$field] = $messages;
+            $fieldName = implode('.', array_merge($this->fieldPrefix, [$field]));
+            $this->fields[$fieldName] = $messages;
         }
 
         $this->message = $this->errors->first();
     }
 
     /**
-     * Returns directly the message bag instance with the model's errors.
+     * getErrors returns directly the message bag instance with the model's errors
      * @return \Illuminate\Support\MessageBag
      */
     public function getErrors()
@@ -70,10 +88,20 @@ class ValidationException extends Exception
     }
 
     /**
-     * Returns invalid fields.
+     * getFields returns invalid fields
      */
     public function getFields()
     {
         return $this->fields;
+    }
+
+    /**
+     * setFieldPrefix increases the field target specificity
+     */
+    public function setFieldPrefix(array $prefix)
+    {
+        $this->fieldPrefix = array_filter($prefix, 'strlen');
+
+        $this->evalErrors();
     }
 }

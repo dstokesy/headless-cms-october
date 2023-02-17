@@ -2,58 +2,57 @@
 
 use Exception;
 
+/**
+ * Purgeable
+ *
+ * @package october\database
+ * @author Alexey Bobkov, Samuel Georges
+ */
 trait Purgeable
 {
     /**
-     * @var array List of attribute names which should not be saved to the database.
+     * @var array purgeable attribute names which should not be saved to the database.
      *
      * protected $purgeable = [];
      */
 
     /**
-     * @var array List of original attribute values before they were purged.
+     * @var array originalPurgeableValues before they were purged.
      */
     protected $originalPurgeableValues = [];
 
     /**
-     * Boot the purgeable trait for a model.
-     * @return void
+     * initializePurgeable trait for a model.
      */
-    public static function bootPurgeable()
+    public function initializePurgeable()
     {
-        if (!property_exists(get_called_class(), 'purgeable')) {
+        if (!is_array($this->purgeable)) {
             throw new Exception(sprintf(
-                'You must define a $purgeable property in %s to use the Purgeable trait.',
-                get_called_class()
+                'The $purgeable property in %s must be an array to use the Purgeable trait.',
+                get_class($this)
             ));
         }
 
-        /*
-         * Remove any purge attributes from the data set
-         */
-        static::extend(function ($model) {
-            $model->bindEvent('model.saveInternal', function () use ($model) {
-                $model->purgeAttributes();
-            });
+        // Remove any purge attributes from the data set
+        $this->bindEvent('model.saveInternal', function () {
+            $this->purgeAttributes();
         });
     }
 
     /**
-     * Adds an attribute to the purgeable attributes list
+     * addPurgeable adds an attribute to the purgeable attributes list
      * @param  array|string|null  $attributes
-     * @return $this
+     * @return void
      */
     public function addPurgeable($attributes = null)
     {
         $attributes = is_array($attributes) ? $attributes : func_get_args();
 
         $this->purgeable = array_merge($this->purgeable, $attributes);
-
-        return $this;
     }
 
     /**
-     * Removes purged attributes from the dataset, used before saving.
+     * purgeAttributes removes purged attributes from the dataset, used before saving.
      * @param $attributes mixed Attribute(s) to purge, if unspecified, $purgable property is used
      * @return array Current attribute set
      */
@@ -81,7 +80,7 @@ trait Purgeable
     }
 
     /**
-     * Returns a collection of fields that will be hashed.
+     * getPurgeableAttributes returns a collection of fields that will be hashed.
      */
     public function getPurgeableAttributes()
     {
@@ -89,7 +88,7 @@ trait Purgeable
     }
 
     /**
-     * Returns the original values of any purged attributes.
+     * getOriginalPurgeValues returns the original values of any purged attributes.
      */
     public function getOriginalPurgeValues()
     {
@@ -97,7 +96,7 @@ trait Purgeable
     }
 
     /**
-     * Returns the original values of any purged attributes.
+     * getOriginalPurgeValue returns the original values of any purged attributes.
      */
     public function getOriginalPurgeValue($attribute)
     {
@@ -105,11 +104,10 @@ trait Purgeable
     }
 
     /**
-     * Restores the original values of any purged attributes.
+     * restorePurgedValues restores the original values of any purged attributes.
      */
     public function restorePurgedValues()
     {
         $this->attributes = array_merge($this->getAttributes(), $this->originalPurgeableValues);
-        return $this;
     }
 }

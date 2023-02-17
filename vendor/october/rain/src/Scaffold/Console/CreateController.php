@@ -1,104 +1,80 @@
 <?php namespace October\Rain\Scaffold\Console;
 
-use October\Rain\Scaffold\GeneratorCommand;
-use Symfony\Component\Console\Input\InputOption;
-use Symfony\Component\Console\Input\InputArgument;
+use October\Rain\Scaffold\GeneratorCommandBase;
 use October\Rain\Support\Str;
 
-class CreateController extends GeneratorCommand
+/**
+ * CreateController
+ */
+class CreateController extends GeneratorCommandBase
 {
     /**
-     * The console command name.
-     *
-     * @var string
+     * @var string signature for the command
      */
-    protected $name = 'create:controller';
+    protected $signature = 'create:controller {namespace : App or Plugin Namespace (eg: Acme.Blog)}
+        {name : The name of the controller. Eg: Posts}
+        {--model= : Define which model name to use, otherwise the singular controller name is used.}
+        {--no-form : Do not implement a form for this controller}
+        {--no-list : Do not implement a list for this controller}
+        {--o|overwrite : Overwrite existing files with generated ones}';
 
     /**
-     * The console command description.
-     *
-     * @var string
+     * @var string description of the console command
      */
     protected $description = 'Creates a new controller.';
 
     /**
-     * The type of class being generated.
-     *
-     * @var string
+     * @var string type of class being generated
      */
-    protected $type = 'Controller';
+    protected $typeLabel = 'Controller';
 
     /**
-     * A mapping of stub to generated file.
-     *
-     * @var array
+     * makeStubs makes all stubs
      */
-    protected $stubs = [
-        'controller/_list_toolbar.stub' => 'controllers/{{lower_name}}/_list_toolbar.htm',
-        'controller/config_form.stub'   => 'controllers/{{lower_name}}/config_form.yaml',
-        'controller/config_list.stub'   => 'controllers/{{lower_name}}/config_list.yaml',
-        'controller/create.stub'        => 'controllers/{{lower_name}}/create.htm',
-        'controller/index.stub'         => 'controllers/{{lower_name}}/index.htm',
-        'controller/preview.stub'       => 'controllers/{{lower_name}}/preview.htm',
-        'controller/update.stub'        => 'controllers/{{lower_name}}/update.htm',
-        'controller/controller.stub'    => 'controllers/{{studly_name}}.php',
-    ];
-
-    /**
-     * Prepare variables for stubs.
-     *
-     * return @array
-     */
-    protected function prepareVars()
+    public function makeStubs()
     {
-        $pluginCode = $this->argument('plugin');
+        $this->makeStub('controller/controller.stub', 'controllers/{{studly_name}}.php');
 
-        $parts = explode('.', $pluginCode);
-        $plugin = array_pop($parts);
-        $author = array_pop($parts);
-
-        $controller = $this->argument('controller');
-
-        /*
-         * Determine the model name to use,
-         * either supplied or singular from the controller name.
-         */
-        $model = $this->option('model');
-        if (!$model) {
-            $model = Str::singular($controller);
+        if (!$this->option('no-list')) {
+            $this->makeStub('controller/config_list.stub', 'controllers/{{lower_name}}/config_list.yaml');
+            $this->makeStub('controller/_list_toolbar.stub', 'controllers/{{lower_name}}/_list_toolbar.php');
+            $this->makeStub('controller/index.stub', 'controllers/{{lower_name}}/index.php');
         }
 
+        if (!$this->option('no-form')) {
+            $this->makeStub('controller/config_form.stub', 'controllers/{{lower_name}}/config_form.yaml');
+            $this->makeStub('controller/update.stub', 'controllers/{{lower_name}}/update.php');
+            $this->makeStub('controller/preview.stub', 'controllers/{{lower_name}}/preview.php');
+            $this->makeStub('controller/create.stub', 'controllers/{{lower_name}}/create.php');
+        }
+    }
+
+    /**
+     * prepareVars prepares variables for stubs
+     */
+    protected function prepareVars(): array
+    {
         return [
-            'name' => $controller,
-            'model' => $model,
-            'author' => $author,
-            'plugin' => $plugin
+            'name' => $this->argument('name'),
+            'namespace' => $this->argument('namespace'),
+            'model' => $this->defineModelName(),
+            'form' => !$this->option('no-form'),
+            'list' => !$this->option('no-list'),
         ];
     }
 
     /**
-     * Get the console command arguments.
-     *
-     * @return array
+     * defineModelName to use, either supplied or singular from the controller name
      */
-    protected function getArguments()
+    protected function defineModelName(): string
     {
-        return [
-            ['plugin', InputArgument::REQUIRED, 'The name of the plugin to create. Eg: RainLab.Blog'],
-            ['controller', InputArgument::REQUIRED, 'The name of the controller. Eg: Posts'],
-        ];
-    }
+        $model = $this->option('model');
 
-    /**
-     * Get the console command options.
-     *
-     * @return array
-     */
-    protected function getOptions()
-    {
-        return [
-            ['force', null, InputOption::VALUE_NONE, 'Overwrite existing files with generated ones.'],
-            ['model', null, InputOption::VALUE_OPTIONAL, 'Define which model name to use, otherwise the singular controller name is used.'],
-        ];
+        if (!$model) {
+            $model = Str::singular($this->argument('name'));
+        }
+
+        return $model;
+
     }
 }

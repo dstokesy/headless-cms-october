@@ -3,6 +3,8 @@
 use October\Rain\Support\Facade;
 
 /**
+ * Markdown
+ *
  * @method static string parse(string $text)
  * @method static string parseClean(string $text)
  * @method static string parseSafe(string $text)
@@ -13,8 +15,7 @@ use October\Rain\Support\Facade;
 class Markdown extends Facade
 {
     /**
-     * Get the registered name of the component.
-     *
+     * getFacadeAccessor returns the registered name of the component
      * @return string
      */
     protected static function getFacadeAccessor()

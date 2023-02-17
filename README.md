@@ -1,42 +1,72 @@
-# Installation Wizard for October CMS v1.0
+<p align="center">
+    <img src="https://github.com/octobercms/october/blob/develop/themes/demo/assets/images/october.png?raw=true" alt="October" width="25%" height="25%" />
+</p>
 
-The wizard installation will install the free version of October CMS (v1.0) for testing, trial and teaching purposes.
+[October](https://octobercms.com) is a Content Management System (CMS) and web platform whose sole purpose is to make your development workflow simple again. It was born out of frustration with existing systems. We feel building websites has become a convoluted and confusing process that leaves developers unsatisfied. We want to turn you around to the simpler side and get back to basics.
 
-1. Prepare a directory on your server that is empty. It can be a sub-directory, domain root or a sub-domain.
-1. [Download the installer archive file](https://github.com/octobercms/install/archive/master.zip).
-1. Unpack the installer archive to the prepared directory.
-1. Grant writing permissions on the installation directory and all its subdirectories and files.
-1. Navigate to the install.php script in your web browser.
-1. Follow the installation instructions.
+October's mission is to show the world that web development is not rocket science.
 
-> **Note**: This version is no longer actively maintained and will only receive security updates. See [instructions below for installing v2.0 of October CMS](#installing-october-cms-v20).
+[![Build Status](https://travis-ci.org/octobercms/october.svg?branch=develop)](https://travis-ci.org/octobercms/october)
+[![License](https://poser.pugx.org/october/october/license.svg)](./LICENSE.md)
 
-### Minimum System Requirements
+> *Please note*: October is open source but it is not free software. A license with a small fee is required for each website you build with October CMS.
 
-October CMS v1.0 has a few system requirements:
+## Installing October
 
-* PHP version 7.2 or higher
-* PDO PHP Extension (and relevant driver for the database you want to connect to)
-* cURL PHP Extension
-* OpenSSL PHP Extension
-* Mbstring PHP Extension
-* ZipArchive PHP Extension
-* GD PHP Extension
-* SimpleXML PHP Extension
+Instructions on how to install October can be found at the [installation guide](https://octobercms.com/docs/setup/installation).
 
-### OS Dependencies
+### Quick Start Installation
 
-Some OS distributions may require you to manually install some of the required PHP extensions.
-
-When using Ubuntu, the following command can be run to install all required extensions:
-
-    sudo apt-get update &&
-    sudo apt-get install php php-ctype php-curl php-xml php-fileinfo php-gd php-json php-mbstring php-mysql php-sqlite3 php-zip
-
-## Installing October CMS v2.0
-
-The latest version of October CMS is v2.0, a professionally managed version of October CMS. A small fee is required to use this version. It uses composer for its dependency management and can be installed with this command.
+If you have composer installed, run this in your terminal to install October CMS from command line. This will place the files in a directory named **myoctober**.
 
     composer create-project october/october myoctober
 
-For further information, visit the [documentation for installation instructions](https://octobercms.com/docs/setup/installation).
+If you plan on using a database, run this command inside the application directory.
+
+    php artisan october:install
+
+## Learning October
+
+The best place to learn October CMS is by [reading the documentation](https://octobercms.com/docs) or [following some tutorials](https://octobercms.com/support/articles/tutorials).
+
+You may also watch this [introductory video](https://www.youtube.com/watch?v=yLZTOeOS7wI). Make sure to check out our [official YouTube channel](https://www.youtube.com/c/OctoberCMSOfficial). There is also the excellent video series by [Watch & Learn](https://watch-learn.com/series/making-websites-with-october-cms).
+
+For code examples of building with October CMS, visit the [RainLab Plugin Suite](https://github.com/rainlab) or the [October Demos Repo](https://github.com/octoberdemos).
+
+## Coding Standards
+
+Please follow the following guides and code standards:
+
+* [PSR 4 Coding Standards](https://github.com/php-fig/fig-standards/blob/master/accepted/PSR-4-autoloader.md)
+* [PSR 2 Coding Style Guide](https://github.com/php-fig/fig-standards/blob/master/accepted/PSR-2-coding-style-guide.md)
+* [PSR 1 Coding Standards](https://github.com/php-fig/fig-standards/blob/master/accepted/PSR-1-basic-coding-standard.md)
+
+## Security Vulnerabilities
+
+Please review [our security policy](https://github.com/octobercms/october/security/policy) on how to report security vulnerabilities.
+
+## Development Team
+
+October CMS was created by [Alexey Bobkov](https://www.linkedin.com/in/alexey-bobkov-232ba02b/) and [Samuel Georges](https://www.linkedin.com/in/samuel-georges-0a964131/), who both continue to develop the platform.
+
+## Foundation library
+
+The CMS uses [Laravel](https://laravel.com) as a foundation PHP framework.
+
+## Contact
+
+For announcements and updates:
+
+* [Contact Us Page](http://octoberdev.test/contact)
+* [Follow us on Twitter](https://twitter.com/octobercms)
+* [Like us on Facebook](https://facebook.com/octobercms)
+
+To chat or hang out:
+
+* [Join us on Slack](https://octobercms.slack.com)
+* [Join us on Discord](https://discord.gg/gEKgwSZ)
+* [Join us on Telegram](https://t.me/octoberchat)
+
+## License
+
+The October CMS platform is licensed software, see [End User License Agreement](./LICENSE.md) (EULA) for more details.

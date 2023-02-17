@@ -1,56 +1,43 @@
 <?php namespace October\Rain\Foundation;
 
-use Closure;
-use Illuminate\Foundation\Application as ApplicationBase;
-use Symfony\Component\Debug\Exception\FatalErrorException;
+use October\Rain\Support\Str;
+use October\Rain\Support\Collection;
+use October\Rain\Filesystem\Filesystem;
 use October\Rain\Events\EventServiceProvider;
 use October\Rain\Router\RoutingServiceProvider;
 use October\Rain\Foundation\Providers\LogServiceProvider;
-use October\Rain\Foundation\Providers\MakerServiceProvider;
 use October\Rain\Foundation\Providers\ExecutionContextProvider;
+use Illuminate\Foundation\Application as ApplicationBase;
+use Illuminate\Foundation\AliasLoader;
+use Illuminate\Foundation\PackageManifest;
+use Illuminate\Foundation\ProviderRepository;
+use Carbon\Laravel\ServiceProvider as CarbonServiceProvider;
+use Illuminate\Support\Env;
 use Throwable;
-use Exception;
+use Closure;
 
+/**
+ * Application foundation class as an extension of Laravel
+ */
 class Application extends ApplicationBase
 {
     /**
-     * The base path for plugins.
-     *
-     * @var string
+     * @var string pluginsPath is the base path for plugins
      */
     protected $pluginsPath;
 
     /**
-     * The base path for themes.
-     *
-     * @var string
+     * @var string themesPath is the base path for themes
      */
     protected $themesPath;
 
     /**
-     * Get the path to the public / web directory.
-     *
-     * @return string
+     * @var string cachePath is the base path for cache files
      */
-    public function publicPath()
-    {
-        return $this->basePath;
-    }
+    protected $cachePath;
 
     /**
-     * Get the path to the language files.
-     *
-     * @return string
-     */
-    public function langPath()
-    {
-        return $this->basePath.'/lang';
-    }
-
-    /**
-     * Register all of the base service providers.
-     *
-     * @return void
+     * registerBaseServiceProviders registers all of the base service providers
      */
     protected function registerBaseServiceProviders()
     {
@@ -60,137 +47,182 @@ class Application extends ApplicationBase
 
         $this->register(new RoutingServiceProvider($this));
 
-        $this->register(new MakerServiceProvider($this));
-
         $this->register(new ExecutionContextProvider($this));
+
+        $this->register(new CarbonServiceProvider($this));
     }
 
     /**
-     * Run the given array of bootstrap classes.
-     *
-     * @param  array  $bootstrappers
-     * @return void
-     */
-    public function bootstrapWith(array $bootstrappers)
-    {
-        $this->hasBeenBootstrapped = true;
-
-        $exceptions = [];
-        foreach ($bootstrappers as $bootstrapper) {
-            $this['events']->fire('bootstrapping: '.$bootstrapper, [$this]);
-
-            // Defer any exceptions until after the application has been
-            // bootstrapped so that the exception handler can run without issues
-            try {
-                $this->make($bootstrapper)->bootstrap($this);
-            } catch (\Exception $ex) {
-                $exceptions[] = $ex;
-            }
-
-            $this['events']->fire('bootstrapped: '.$bootstrapper, [$this]);
-        }
-
-        if (!empty($exceptions)) {
-            throw $exceptions[0];
-        }
-    }
-
-    /**
-     * Bind all of the application paths in the container.
-     *
-     * @return void
+     * bindPathsInContainer binds all of the application paths in the container
      */
     protected function bindPathsInContainer()
     {
-        parent::bindPathsInContainer();
+        // Laravel paths (see parent class)
+        $this->instance('path', $this->path());
+        $this->instance('path.base', $this->basePath());
+        $this->instance('path.config', $this->configPath());
+        $this->instance('path.public', $this->publicPath());
+        $this->instance('path.storage', $this->storagePath());
+        $this->instance('path.database', $this->databasePath());
+        $this->instance('path.resources', $this->resourcePath());
+        $this->instance('path.bootstrap', $this->bootstrapPath());
 
+        // October CMS paths
+        $this->instance('path.lang', $this->langPath());
         $this->instance('path.plugins', $this->pluginsPath());
         $this->instance('path.themes', $this->themesPath());
+        $this->instance('path.cache', $this->cachePath());
         $this->instance('path.temp', $this->tempPath());
     }
 
     /**
-     * Get the path to the public / web directory.
-     *
+     * publicPath gets the path to the public / web directory
      * @return string
      */
-    public function pluginsPath()
+    public function publicPath()
     {
-        return $this->pluginsPath ?: $this->basePath.'/plugins';
+        return $this->hasPublicFolder()
+            ? $this->basePath.DIRECTORY_SEPARATOR.'public'
+            : $this->basePath;
     }
 
     /**
-     * Set the plugins path for the application.
-     *
-     * @param  string $path
+     * hasPublicFolder returns true if a public folder exists, initiated by october:mirror
+     */
+    public function hasPublicFolder()
+    {
+        return file_exists($this->basePath.DIRECTORY_SEPARATOR.'public');
+    }
+
+    /**
+     * langPath returns the path to the lang directory
+     * @param string $path
+     * @return string
+     */
+    public function langPath($path = '')
+    {
+        return ($this->langPath ?: $this->path().DIRECTORY_SEPARATOR.'lang')
+            .($path != '' ? DIRECTORY_SEPARATOR.$path : '');
+    }
+
+    /**
+     * storagePath returns the path to the storage directory
+     * @param string $path
+     * @return string
+     */
+    public function storagePath($path = '')
+    {
+        return ($this->storagePath ?: $this->basePath.DIRECTORY_SEPARATOR.'storage')
+            .($path != '' ? DIRECTORY_SEPARATOR.$path : '');
+    }
+
+    /**
+     * cachePath return path for cache files
+     * @param string $path
+     * @return string
+     */
+    public function cachePath($path = '')
+    {
+        return ($this->cachePath ?: $this->basePath.DIRECTORY_SEPARATOR.'storage')
+            .($path != '' ? DIRECTORY_SEPARATOR.$path : '');
+    }
+
+    /**
+     * useCachePath sets path path for cache files
+     * @param string $path
      * @return $this
      */
-    public function setPluginsPath($path)
+    public function useCachePath($path)
+    {
+        $this->cachePath = $path;
+
+        $this->instance('path.cache', $path);
+
+        $this->instance('path.temp', $path.DIRECTORY_SEPARATOR.'temp');
+
+        return $this;
+    }
+
+    /**
+     * pluginsPath returns path to location of plugins
+     * @param string $path
+     * @return string
+     */
+    public function pluginsPath($path = '')
+    {
+        return ($this->pluginsPath ?: $this->basePath.DIRECTORY_SEPARATOR.'plugins')
+            .($path != '' ? DIRECTORY_SEPARATOR.$path : '');
+    }
+
+    /**
+     * usePluginsPath sets path to location of plugins
+     * @param string $path
+     * @return $this
+     */
+    public function usePluginsPath($path)
     {
         $this->pluginsPath = $path;
+
         $this->instance('path.plugins', $path);
+
         return $this;
     }
 
     /**
-     * Get the path to the public / web directory.
-     *
+     * themesPath returns path to location of themes
+     * @param string $path
      * @return string
      */
-    public function themesPath()
+    public function themesPath($path = '')
     {
-        return $this->themesPath ?: $this->basePath.'/themes';
+        return ($this->themesPath ?: $this->basePath.DIRECTORY_SEPARATOR.'themes')
+            .($path != '' ? DIRECTORY_SEPARATOR.$path : '');
     }
 
     /**
-     * Set the themes path for the application.
-     *
-     * @param  string $path
+     * useThemesPath sets path to location of themes
+     * @param string $path
      * @return $this
      */
-    public function setThemesPath($path)
+    public function useThemesPath($path)
     {
         $this->themesPath = $path;
+
         $this->instance('path.themes', $path);
+
         return $this;
     }
 
     /**
-     * Get the path to the public / web directory.
-     *
+     * tempPath returns path for storing temporary files.
+     * @param string $path
      * @return string
      */
-    public function tempPath()
+    public function tempPath($path = ''): string
     {
-        return $this->basePath.'/storage/temp';
+        return ($this->cachePath().DIRECTORY_SEPARATOR.'temp')
+            .($path != '' ? DIRECTORY_SEPARATOR.$path : '');
     }
 
     /**
-     * Resolve the given type from the container.
-     *
-     * (Overriding Container::make)
-     *
-     * @param  string  $abstract
-     * @return mixed
+     * normalizeCachePath normalizes a relative or absolute path to a cache file.
+     * @param string $key
+     * @param string $default
+     * @return string
      */
-    public function make($abstract, array $parameters = [])
+    protected function normalizeCachePath($key, $default)
     {
-        $abstract = $this->getAlias($abstract);
-
-        if (isset($this->deferredServices[$abstract])) {
-            $this->loadDeferredProvider($abstract);
+        if (is_null($env = Env::get($key))) {
+            return $this->cachePath().DIRECTORY_SEPARATOR.$default;
         }
 
-        if ($parameters) {
-            return $this->make(Maker::class)->make($abstract, $parameters);
-        }
-
-        return parent::make($abstract);
+        return Str::startsWith($env, '/')
+            ? $env
+            : $this->basePath($env);
     }
 
     /**
-     * Register a "before" application filter.
-     *
+     * before logic is called before the router runs.
      * @param  \Closure|string  $callback
      * @return void
      */
@@ -200,8 +232,7 @@ class Application extends ApplicationBase
     }
 
     /**
-     * Register an "after" application filter.
-     *
+     * after logic is called after the router finishes.
      * @param  \Closure|string  $callback
      * @return void
      */
@@ -211,41 +242,47 @@ class Application extends ApplicationBase
     }
 
     /**
-     * Register an application error handler.
-     *
+     * error registers an application error handler.
      * @param  \Closure  $callback
      * @return void
      */
     public function error(Closure $callback)
     {
-        $this->make('Illuminate\Contracts\Debug\ExceptionHandler')->error($callback);
+        $this->make(\Illuminate\Contracts\Debug\ExceptionHandler::class)->error($callback);
     }
 
     /**
-     * Register an error handler for fatal errors.
-     *
+     * fatal registers an error handler for fatal errors.
      * @param  \Closure  $callback
      * @return void
      */
     public function fatal(Closure $callback)
     {
-        $this->error(function (FatalErrorException $e) use ($callback) {
+        $this->error(function ($e) use ($callback) {
             return call_user_func($callback, $e);
         });
     }
 
     /**
-     * Determine if we are running in the back-end area.
-     *
+     * runningInBackend determines if we are running in the backend area.
      * @return bool
      */
     public function runningInBackend()
     {
-        return $this['execution.context'] == 'back-end';
+        return $this['execution.context'] === 'backend';
     }
 
     /**
-     * Returns true if a database connection is present.
+     * runningInFrontend determines if we are running in the frontend area.
+     * @return bool
+     */
+    public function runningInFrontend()
+    {
+        return !$this->runningInBackend() && !$this->runningInConsole();
+    }
+
+    /**
+     * hasDatabase returns true if a database connection is present.
      * @return boolean
      */
     public function hasDatabase()
@@ -261,7 +298,7 @@ class Application extends ApplicationBase
     }
 
     /**
-     * Set the current application locale.
+     * setLocale for the application.
      * @param  string  $locale
      * @return void
      */
@@ -269,51 +306,69 @@ class Application extends ApplicationBase
     {
         parent::setLocale($locale);
 
-        $this['events']->fire('locale.changed', [$locale]);
+        $this['events']->dispatch('locale.changed', [$locale]);
     }
 
     //
-    // Core aliases
+    // Core registrations
     //
 
     /**
-     * Register the core class aliases in the container.
-     *
-     * @return void
+     * registerConfiguredProviders is entirely inherited from the parent,
+     * except the October\Rain namespace is included in the partition.
+     */
+    public function registerConfiguredProviders()
+    {
+        $providers = Collection::make($this->config['app.providers'])
+            ->partition(function ($provider) {
+                return strpos($provider, 'Illuminate\\') === 0 ||
+                    strpos($provider, 'October\\Rain\\') === 0;
+            });
+
+        $providers->splice(1, 0, [$this->make(PackageManifest::class)->providers()]);
+
+        (new ProviderRepository($this, new Filesystem, $this->getCachedServicesPath()))
+            ->load($providers->collapse()->toArray());
+    }
+
+    /**
+     * registerCoreContainerAliases in the container.
      */
     public function registerCoreContainerAliases()
     {
         $aliases = [
-            'app'                  => [\October\Rain\Foundation\Application::class, \Illuminate\Contracts\Container\Container::class, \Illuminate\Contracts\Foundation\Application::class],
-            'blade.compiler'       => [\Illuminate\View\Compilers\BladeCompiler::class],
-            'cache'                => [\Illuminate\Cache\CacheManager::class, \Illuminate\Contracts\Cache\Factory::class],
-            'cache.store'          => [\Illuminate\Cache\Repository::class, \Illuminate\Contracts\Cache\Repository::class],
-            'config'               => [\Illuminate\Config\Repository::class, \Illuminate\Contracts\Config\Repository::class],
-            'cookie'               => [\Illuminate\Cookie\CookieJar::class, \Illuminate\Contracts\Cookie\Factory::class, \Illuminate\Contracts\Cookie\QueueingFactory::class],
-            'encrypter'            => [\Illuminate\Encryption\Encrypter::class, \Illuminate\Contracts\Encryption\Encrypter::class],
-            'db'                   => [\October\Rain\Database\DatabaseManager::class],
-            'db.connection'        => [\Illuminate\Database\Connection::class, \Illuminate\Database\ConnectionInterface::class],
-            'events'               => [\Illuminate\Events\Dispatcher::class, \Illuminate\Contracts\Events\Dispatcher::class],
-            'files'                => [\Illuminate\Filesystem\Filesystem::class],
-            'filesystem'           => [\Illuminate\Filesystem\FilesystemManager::class, \Illuminate\Contracts\Filesystem\Factory::class],
-            'filesystem.disk'      => [\Illuminate\Contracts\Filesystem\Filesystem::class],
-            'filesystem.cloud'     => [\Illuminate\Contracts\Filesystem\Cloud::class],
-            'hash'                 => [\Illuminate\Contracts\Hashing\Hasher::class],
-            'translator'           => [\Illuminate\Translation\Translator::class, \Illuminate\Contracts\Translation\Translator::class],
-            'log'                  => [\Illuminate\Log\Writer::class, \Illuminate\Contracts\Logging\Log::class, \Psr\Log\LoggerInterface::class],
-            'mailer'               => [\Illuminate\Mail\Mailer::class, \Illuminate\Contracts\Mail\Mailer::class, \Illuminate\Contracts\Mail\MailQueue::class],
-            'queue'                => [\Illuminate\Queue\QueueManager::class, \Illuminate\Contracts\Queue\Factory::class, \Illuminate\Contracts\Queue\Monitor::class],
-            'queue.connection'     => [\Illuminate\Contracts\Queue\Queue::class],
-            'queue.failer'         => [\Illuminate\Queue\Failed\FailedJobProviderInterface::class],
-            'redirect'             => [\Illuminate\Routing\Redirector::class],
-            'redis'                => [\Illuminate\Redis\RedisManager::class, \Illuminate\Contracts\Redis\Factory::class],
-            'request'              => [\Illuminate\Http\Request::class, \Symfony\Component\HttpFoundation\Request::class],
-            'router'               => [\Illuminate\Routing\Router::class, \Illuminate\Contracts\Routing\Registrar::class, \Illuminate\Contracts\Routing\BindingRegistrar::class],
-            'session'              => [\Illuminate\Session\SessionManager::class],
-            'session.store'        => [\Illuminate\Session\Store::class, \Illuminate\Contracts\Session\Session::class],
-            'url'                  => [\October\Rain\Router\UrlGenerator::class, \Illuminate\Contracts\Routing\UrlGenerator::class],
-            'validator'            => [\Illuminate\Validation\Factory::class, \Illuminate\Contracts\Validation\Factory::class],
-            'view'                 => [\Illuminate\View\Factory::class, \Illuminate\Contracts\View\Factory::class],
+            'app' => [\October\Rain\Foundation\Application::class, \Illuminate\Contracts\Container\Container::class, \Illuminate\Contracts\Foundation\Application::class],
+            'blade.compiler' => [\Illuminate\View\Compilers\BladeCompiler::class],
+            'cache' => [\Illuminate\Cache\CacheManager::class, \Illuminate\Contracts\Cache\Factory::class],
+            'cache.store' => [\Illuminate\Cache\Repository::class, \Illuminate\Contracts\Cache\Repository::class],
+            'config' => [\Illuminate\Config\Repository::class, \Illuminate\Contracts\Config\Repository::class],
+            'cookie' => [\Illuminate\Cookie\CookieJar::class, \Illuminate\Contracts\Cookie\Factory::class, \Illuminate\Contracts\Cookie\QueueingFactory::class],
+            'encrypter' => [\Illuminate\Encryption\Encrypter::class, \Illuminate\Contracts\Encryption\Encrypter::class],
+            'db' => [\October\Rain\Database\DatabaseManager::class],
+            'db.connection' => [\Illuminate\Database\Connection::class, \Illuminate\Database\ConnectionInterface::class],
+            'db.schema' => [\Illuminate\Database\Schema\Builder::class],
+            'events' => [\October\Rain\Events\Dispatcher::class, \Illuminate\Contracts\Events\Dispatcher::class],
+            'files' => [\Illuminate\Filesystem\Filesystem::class],
+            'filesystem' => [\Illuminate\Filesystem\FilesystemManager::class, \Illuminate\Contracts\Filesystem\Factory::class],
+            'filesystem.disk' => [\Illuminate\Contracts\Filesystem\Filesystem::class],
+            'filesystem.cloud' => [\Illuminate\Contracts\Filesystem\Cloud::class],
+            'hash' => [\Illuminate\Contracts\Hashing\Hasher::class],
+            'translator' => [\Illuminate\Translation\Translator::class, \Illuminate\Contracts\Translation\Translator::class],
+            'log' => [\Illuminate\Log\Logger::class, \Psr\Log\LoggerInterface::class],
+            'mail.manager' => [\Illuminate\Mail\MailManager::class, \Illuminate\Contracts\Mail\Factory::class],
+            'mailer' => [\Illuminate\Mail\Mailer::class, \Illuminate\Contracts\Mail\Mailer::class, \Illuminate\Contracts\Mail\MailQueue::class],
+            'queue' => [\Illuminate\Queue\QueueManager::class, \Illuminate\Contracts\Queue\Factory::class, \Illuminate\Contracts\Queue\Monitor::class],
+            'queue.connection' => [\Illuminate\Contracts\Queue\Queue::class],
+            'queue.failer' => [\Illuminate\Queue\Failed\FailedJobProviderInterface::class],
+            'redirect' => [\Illuminate\Routing\Redirector::class],
+            'redis' => [\Illuminate\Redis\RedisManager::class, \Illuminate\Contracts\Redis\Factory::class],
+            'request' => [\Illuminate\Http\Request::class, \Symfony\Component\HttpFoundation\Request::class],
+            'router' => [\Illuminate\Routing\Router::class, \Illuminate\Contracts\Routing\Registrar::class, \Illuminate\Contracts\Routing\BindingRegistrar::class],
+            'session' => [\Illuminate\Session\SessionManager::class],
+            'session.store' => [\Illuminate\Session\Store::class, \Illuminate\Contracts\Session\Session::class],
+            'url' => [\Illuminate\Routing\UrlGenerator::class, \Illuminate\Contracts\Routing\UrlGenerator::class],
+            'validator' => [\October\Rain\Validation\Factory::class, \Illuminate\Contracts\Validation\Factory::class],
+            'view' => [\Illuminate\View\Factory::class, \Illuminate\Contracts\View\Factory::class],
         ];
 
         foreach ($aliases as $key => $aliases) {
@@ -321,6 +376,14 @@ class Application extends ApplicationBase
                 $this->alias($key, $alias);
             }
         }
+    }
+
+    /**
+     * registerClassAlias registers a new global alias, useful for facades
+     */
+    public function registerClassAlias(string $key, string $class)
+    {
+        AliasLoader::getInstance()->alias($key, $class);
     }
 
     //
@@ -334,7 +397,7 @@ class Application extends ApplicationBase
      */
     public function getCachedConfigPath()
     {
-        return $this['path.storage'].'/framework/config.php';
+        return $this->normalizeCachePath('APP_CONFIG_CACHE', 'framework/config.php');
     }
 
     /**
@@ -344,7 +407,7 @@ class Application extends ApplicationBase
      */
     public function getCachedRoutesPath()
     {
-        return $this['path.storage'].'/framework/routes.php';
+        return $this->normalizeCachePath('APP_ROUTES_CACHE', 'framework/routes.php');
     }
 
     /**
@@ -354,7 +417,7 @@ class Application extends ApplicationBase
      */
     public function getCachedCompilePath()
     {
-        return $this->storagePath().'/framework/compiled.php';
+        return $this->normalizeCachePath('APP_COMPILED_CACHE', 'framework/compiled.php');
     }
 
     /**
@@ -364,7 +427,7 @@ class Application extends ApplicationBase
      */
     public function getCachedServicesPath()
     {
-        return $this->storagePath().'/framework/services.php';
+        return $this->normalizeCachePath('APP_SERVICES_CACHE', 'framework/services.php');
     }
 
     /**
@@ -374,7 +437,7 @@ class Application extends ApplicationBase
      */
     public function getCachedPackagesPath()
     {
-        return $this->storagePath().'/framework/packages.php';
+        return $this->normalizeCachePath('APP_PACKAGES_CACHE', 'framework/packages.php');
     }
 
     /**
@@ -384,6 +447,16 @@ class Application extends ApplicationBase
      */
     public function getCachedClassesPath()
     {
-        return $this->storagePath().'/framework/classes.php';
+        return $this->normalizeCachePath('APP_CLASSES_CACHE', 'framework/classes.php');
+    }
+
+    /**
+     * getNamespace returns the application namespace.
+     * @return string
+     * @throws \RuntimeException
+     */
+    public function getNamespace()
+    {
+        return 'App\\';
     }
 }

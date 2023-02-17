@@ -1,161 +1,160 @@
 <?php namespace October\Rain\Support;
 
 use October\Rain\Filesystem\Filesystem;
-use Throwable;
 use Exception;
+use Throwable;
 
 /**
- * Class loader
- *
- * A simple autoloader used by October, it expects the folder names
+ * ClassLoader is a custom autoloader used by October CMS, it uses folder names
  * to be lower case and the file name to be capitalized as per the class name.
+ *
+ * @package october\support
+ * @author Alexey Bobkov, Samuel Georges
  */
 class ClassLoader
 {
     /**
-     * The filesystem instance.
-     *
-     * @var \October\Rain\Filesystem\Filesystem
+     * @var \October\Rain\Filesystem\Filesystem files instance
      */
     public $files;
 
     /**
-     * The base path.
-     *
-     * @var string
+     * @var string basePath
      */
     public $basePath;
 
     /**
-     * The manifest path.
-     *
-     * @var string|null
+     * @var string|null manifestPath
      */
     public $manifestPath;
 
     /**
-     * The loaded manifest array.
-     *
-     * @var array
+     * @var array manifest of loaded items
      */
-    public $manifest;
+    public $manifest = [];
 
     /**
-     * Determine if the manifest needs to be written.
-     *
-     * @var bool
+     * @var bool manifestDirty if manifest needs to be written
      */
     protected $manifestDirty = false;
 
     /**
-     * The registered directories.
-     *
-     * @var array
+     * @var array namespaces registered
+     */
+    protected $namespaces = [];
+
+    /**
+     * @var array directories registered
      */
     protected $directories = [];
 
     /**
-     * Indicates if a ClassLoader has been registered.
-     *
-     * @var bool
+     * @var bool registered indicates if this class is registered
      */
     protected $registered = false;
 
     /**
-     * Create a new package manifest instance.
-     *
-     * @param  \October\Rain\Filesystem\Filesystem  $files
-     * @param  string  $basePath
-     * @param  string  $manifestPath
-     * @return void
+     * __construct creates a new package manifest instance
      */
-    public function __construct(Filesystem $files, $basePath, $manifestPath)
+    public function __construct(Filesystem $files, string $basePath)
     {
         $this->files = $files;
         $this->basePath = $basePath;
-        $this->manifestPath = $manifestPath;
     }
 
     /**
-     * Load the given class file.
-     *
-     * @param  string  $class
-     * @return void
+     * load the given class file
+     * @param string $class
      */
-    public function load($class)
+    public function load($class): bool
     {
         if (
             isset($this->manifest[$class]) &&
-            $this->isRealFilePath($path = $this->manifest[$class])
+            is_file($fullPath = $this->basePath.DIRECTORY_SEPARATOR.$this->manifest[$class])
         ) {
-            require_once $this->basePath.DIRECTORY_SEPARATOR.$path;
+            require $fullPath;
             return true;
         }
 
-        list($lowerClass, $upperClass) = static::normalizeClass($class);
+        [$lowerClass, $upperClass] = $this->normalizeClass($class);
 
-        foreach ($this->directories as $directory) {
-            if ($this->isRealFilePath($path = $directory.DIRECTORY_SEPARATOR.$lowerClass)) {
-                $this->includeClass($class, $path);
-                return true;
+        // Load namespaces
+        foreach ($this->namespaces as $namespace => $directory) {
+            if (substr($class, 0, strlen($namespace)) === $namespace) {
+                if ($this->loadUpperOrLower($class, $directory, $upperClass, $lowerClass) === true) {
+                    return true;
+                }
             }
+        }
 
-            if ($this->isRealFilePath($path = $directory.DIRECTORY_SEPARATOR.$upperClass)) {
-                $this->includeClass($class, $path);
+        // Load directories
+        foreach ($this->directories as $directory) {
+            if ($this->loadUpperOrLower($class, $directory, $upperClass, $lowerClass) === true) {
                 return true;
             }
         }
+
+        return false;
     }
 
     /**
-     * Determine if a relative path to a file exists and is real
-     *
-     * @param  string  $path
-     * @return bool
+     * loadUpperOrLower loads a class in a directory with the supplied upper and lower class path.
      */
-    protected function isRealFilePath($path)
+    protected function loadUpperOrLower(string $class, string $directory, string $upperClass, string $lowerClass): bool
+    {
+        if ($directory) {
+            $directory .= DIRECTORY_SEPARATOR;
+        }
+
+        if ($this->isRealFilePath($path = $directory.$lowerClass)) {
+            $this->includeClass($class, $path);
+            return true;
+        }
+
+        if ($this->isRealFilePath($path = $directory.$upperClass)) {
+            $this->includeClass($class, $path);
+            return true;
+        }
+
+        return false;
+    }
+
+    /**
+     * isRealFilePath determines if a relative path to a file exists and is real
+     */
+    protected function isRealFilePath(string $path): bool
     {
         return is_file(realpath($this->basePath.DIRECTORY_SEPARATOR.$path));
     }
 
     /**
-     * Includes a class and adds to the manifest
-     *
-     * @param  string  $class
-     * @param  string  $path
-     * @return void
+     * includeClass and add to the manifest
      */
-    protected function includeClass($class, $path)
+    protected function includeClass(string $class, string $path): void
     {
-        require_once $this->basePath.DIRECTORY_SEPARATOR.$path;
+        require $this->basePath.DIRECTORY_SEPARATOR.$path;
 
-        $this->manifest[$class] = $path;
+        $this->manifest[$class] = $this->files->normalizePath($path);
 
         $this->manifestDirty = true;
     }
 
     /**
-     * Register the given class loader on the auto-loader stack.
-     *
-     * @return void
+     * register the given class loader on the auto-loader stack
      */
-    public function register()
+    public function register(): void
     {
         if ($this->registered) {
             return;
         }
 
-        $this->ensureManifestIsLoaded();
-
         $this->registered = spl_autoload_register([$this, 'load']);
     }
 
     /**
-     * Build the manifest and write it to disk.
-     *
-     * @return void
+     * build the manifest and write it to disk
      */
-    public function build()
+    public function build(): void
     {
         if (!$this->manifestDirty) {
             return;
@@ -165,12 +164,28 @@ class ClassLoader
     }
 
     /**
-     * Add directories to the class loader.
-     *
-     * @param  string|array  $directories
-     * @return void
+     * initManifest starts the manifest cache file after registration.
      */
-    public function addDirectories($directories)
+    public function initManifest(string $manifestPath): void
+    {
+        $this->manifestPath = $manifestPath;
+
+        $this->ensureManifestIsLoaded();
+    }
+
+    /**
+     * addNamespace
+     */
+    public function addNamespace($namespace, $directory): void
+    {
+        $this->namespaces[$namespace] = $directory;
+    }
+
+    /**
+     * addDirectories to the class loader
+     * @param string|array $directories
+     */
+    public function addDirectories($directories): void
     {
         $this->directories = array_merge($this->directories, (array) $directories);
 
@@ -178,10 +193,8 @@ class ClassLoader
     }
 
     /**
-     * Remove directories from the class loader.
-     *
-     * @param  string|array  $directories
-     * @return void
+     * removeDirectories from the class loader
+     * @param string|array $directories
      */
     public function removeDirectories($directories = null)
     {
@@ -198,41 +211,30 @@ class ClassLoader
     }
 
     /**
-     * Gets all the directories registered with the loader.
-     *
-     * @return array
+     * getDirectories registered with the loader
      */
-    public function getDirectories()
+    public function getDirectories(): array
     {
         return $this->directories;
     }
 
     /**
-     * Get the normal file name for a class.
-     *
-     * @param  string  $class
-     * @return string
+     * normalizeClass get the normal file name for a class
      */
-    protected function normalizeClass($class)
+    protected function normalizeClass(string $class): array
     {
-        /*
-         * Strip first slash
-         */
-        if ($class[0] == '\\') {
+        // Strip first slash
+        if ($class[0] === '\\') {
             $class = substr($class, 1);
         }
 
-        /*
-         * Lowercase folders
-         */
+        // Lowercase folders
         $parts = explode('\\', $class);
         $file = array_pop($parts);
         $namespace = implode('\\', $parts);
         $directory = str_replace(['\\', '_'], DIRECTORY_SEPARATOR, $namespace);
 
-        /*
-         * Provide both alternatives
-         */
+        // Provide both alternatives
         $lowerClass = strtolower($directory) . DIRECTORY_SEPARATOR . $file . '.php';
         $upperClass = $directory . DIRECTORY_SEPARATOR . $file . '.php';
 
@@ -240,47 +242,37 @@ class ClassLoader
     }
 
     /**
-     * Ensure the manifest has been loaded into memory.
-     *
-     * @return void
+     * ensureManifestIsLoaded has been loaded into memory
      */
-    protected function ensureManifestIsLoaded()
+    protected function ensureManifestIsLoaded(): void
     {
-        if (!is_null($this->manifest)) {
-            return;
-        }
+        $manifest = [];
 
         if (file_exists($this->manifestPath)) {
             try {
-                $this->manifest = $this->files->getRequire($this->manifestPath);
+                $manifest = $this->files->getRequire($this->manifestPath);
 
-                if (!is_array($this->manifest)) {
-                    $this->manifest = [];
+                if (!is_array($manifest)) {
+                    $manifest = [];
                 }
             }
-            catch (Exception $ex) {
-                $this->manifest = [];
-            }
-            catch (Throwable $ex) {
-                $this->manifest = [];
-            }
+            catch (Throwable $ex) {}
         }
-        else {
-            $this->manifest = [];
-        }
+
+        $this->manifest += $manifest;
     }
 
     /**
-     * Write the given manifest array to disk.
-     *
-     * @param  array  $manifest
-     * @return void
-     * @throws \Exception
+     * write the given manifest array to disk
      */
-    protected function write(array $manifest)
+    protected function write(array $manifest): void
     {
+        if ($this->manifestPath === null) {
+            return;
+        }
+
         if (!is_writable(dirname($this->manifestPath))) {
-            throw new Exception('The storage/framework/cache directory must be present and writable.');
+            throw new Exception('The '.$this->manifestPath.' directory must be present and writable.');
         }
 
         $this->files->put(

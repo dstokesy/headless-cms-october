@@ -1,9 +1,10 @@
 <?php namespace October\Rain\Router;
 
 use InvalidArgumentException;
+use Exception;
 
 /**
- * Router Rule Object
+ * Rule object for routes
  *
  * @package october\router
  * @author Alexey Bobkov, Samuel Georges
@@ -11,156 +12,186 @@ use InvalidArgumentException;
 class Rule
 {
     /**
-     * @var string A named reference for this rule.
+     * @var array config values for this instance
+     */
+    protected $config = [];
+
+    /**
+     * @var string ruleName is a named reference for this rule.
      */
     protected $ruleName;
 
     /**
-     * @var string The pattern used to match this rule.
+     * @var string rulePattern used to match this rule.
      */
     protected $rulePattern;
 
     /**
-     * @var function Custom condition used when matching this rule.
+     * @var function conditionCallback used when matching this rule.
      */
     protected $conditionCallback;
 
     /**
-     * @var function Called when this rule is matched.
+     * @var function afterMatchCallback called when this rule is matched.
      */
     protected $afterMatchCallback;
 
     /**
-     * @var string URL with static segments only, dynamic segments are stripped
+     * @var string staticUrl with static segments only, dynamic segments are stripped
      */
     public $staticUrl;
 
     /**
-     * @var array Pattern segments
+     * @var array segments for the pattern
      */
     public $segments;
 
     /**
-     * @var int The number of static segments found in the pattern
+     * @var int segmentCount is the number of segments in the pattern
+     */
+    public $segmentCount = 0;
+
+    /**
+     * @var int staticSegmentCount the number of static segments found in the pattern
      */
     public $staticSegmentCount = 0;
 
     /**
-     * @var int The number of dynamic segments found in the pattern
+     * @var int dynamicSegmentCount the number of dynamic segments found in the pattern
      */
     public $dynamicSegmentCount = 0;
 
     /**
-     * @var int The number of wildcard segments found in the pattern
+     * @var int wildSegmentCount the number of wildcard segments found in the pattern
      */
     public $wildSegmentCount = 0;
 
     /**
-     * Creates a new router rule instance.
+     * __construct the new router rule instance.
      *
      * @param string $name
      * @param string $pattern
      */
-    public function __construct($name, $pattern)
+    public function __construct($config = [])
     {
-        $this->ruleName = $name;
-        $this->rulePattern = $pattern;
-        $this->segments = Helper::segmentizeUrl($pattern);
+        $this->config = $config;
 
-        /*
-         * Create the static URL for this pattern
-         */
+        foreach ($config as $key => $val) {
+            $this->{$key} = $val;
+        }
+    }
+
+    /**
+     * fromPattern returns a named rule from a pattern
+     */
+    public static function fromPattern($name, $pattern): static
+    {
+        $segments = Helper::segmentizeUrl($pattern);
+
+        // Create the static URL for this pattern for reverse lookup
+        //
         $staticSegments = [];
-        foreach ($this->segments as $segment) {
+        $staticSegmentCount = $dynamicSegmentCount = $wildSegmentCount = 0;
+
+        foreach ($segments as $segment) {
             if (strpos($segment, ':') !== 0) {
                 $staticSegments[] = $segment;
-                $this->staticSegmentCount++;
+                $staticSegmentCount++;
             }
             else {
-                $this->dynamicSegmentCount++;
+                $dynamicSegmentCount++;
 
                 if (Helper::segmentIsWildcard($segment)) {
-                    $this->wildSegmentCount++;
+                    $wildSegmentCount++;
                 }
             }
         }
 
-        $this->staticUrl = Helper::rebuildUrl($staticSegments);
+        $staticUrl = Helper::rebuildUrl($staticSegments);
+
+        // Build and return rule
+        //
+        $rule = new static([
+            'ruleName' => $name,
+            'rulePattern' => $pattern,
+            'segments' => $segments,
+            'segmentCount' => count($segments),
+            'staticUrl' => $staticUrl,
+            'staticSegments' => $staticSegments,
+            'staticSegmentCount' => $staticSegmentCount,
+            'dynamicSegmentCount' => $dynamicSegmentCount,
+            'wildSegmentCount' => $wildSegmentCount,
+        ]);
+
+        return $rule;
     }
 
     /**
-     * Checks whether a given URL matches a given pattern.
-     * @param string $url The URL to check.
-     * @param array $parameters A reference to a PHP array variable to return the parameter list fetched from URL.
-     * @return boolean Returns true if the URL matches the pattern. Otherwise returns false.
+     * resolveUrl checks whether a given URL matches a given pattern, with a reference to a PHP array
+     * variable to return the parameter list fetched from URL. Returns true if the URL matches the
+     * pattern. Otherwise returns false.
+     * @param string $url
+     * @param array $parameters
+     * @return bool
      */
     public function resolveUrl($url, &$parameters)
     {
+        return $this->resolveUrlSegments(Helper::segmentizeUrl($url), $parameters);
+    }
+
+    /**
+     * resolveUrlSegments is an internal method used for multiple checks.
+     * @param array $urlSegments
+     * @param array $parameters
+     * @return bool
+     */
+    public function resolveUrlSegments($urlSegments, &$parameters)
+    {
         $parameters = [];
 
-        $patternSegments = $this->segments;
-        $patternSegmentNum = count($patternSegments);
-        $urlSegments = Helper::segmentizeUrl($url);
-
-        /*
-         * Only one wildcard can be used, if found, pull out the excess segments
-         */
+        // Only one wildcard can be used, if found, pull out the excess segments
+        $wildSegments = [];
         if ($this->wildSegmentCount === 1) {
             $wildSegments = $this->captureWildcardSegments($urlSegments);
         }
 
-        /*
-         * If the number of URL segments is more than the number of pattern segments - return false
-         */
-        if (count($urlSegments) > count($patternSegments)) {
+        // If the number of URL segments is more than the number of pattern segments
+        if (count($urlSegments) > $this->segmentCount) {
             return false;
         }
 
-        /*
-         * Compare pattern and URL segments
-         */
-        foreach ($patternSegments as $index => $patternSegment) {
-            $patternSegmentLower = mb_strtolower($patternSegment);
-
+        // Compare pattern and URL segments
+        foreach ($this->segments as $index => $patternSegment) {
+            // Static segment
             if (strpos($patternSegment, ':') !== 0) {
-                /*
-                 * Static segment
-                 */
                 if (
                     !array_key_exists($index, $urlSegments) ||
-                    $patternSegmentLower != mb_strtolower($urlSegments[$index])
+                    mb_strtolower($patternSegment) !== mb_strtolower($urlSegments[$index])
                 ) {
                     return false;
                 }
             }
+            // Dynamic segment
             else {
-                /*
-                 * Dynamic segment. Initialize the parameter
-                 */
+                // Initialize the parameter
                 $paramName = Helper::getParameterName($patternSegment);
                 $parameters[$paramName] = false;
 
-                /*
-                 * Determine whether it is optional
-                 */
+                // Determine whether it is optional
                 $optional = Helper::segmentIsOptional($patternSegment);
 
-                /*
-                 * Check if the optional segment has no required segments following it
-                 */
-                if ($optional && $index < $patternSegmentNum-1) {
-                    for ($i = $index+1; $i < $patternSegmentNum; $i++) {
-                        if (!Helper::segmentIsOptional($patternSegments[$i])) {
+                // Check if the optional segment has no required segments following it
+                if ($optional && $index < ($this->segmentCount - 1)) {
+                    for ($i = $index+1; $i < $this->segmentCount; $i++) {
+                        if (!Helper::segmentIsOptional($this->segments[$i])) {
                             $optional = false;
                             break;
                         }
                     }
                 }
 
-                /*
-                 * If the segment is optional and there is no corresponding value in the URL, assign the default value (if provided)
-                 * and skip to the next segment.
-                 */
+                // If the segment is optional and there is no corresponding value in the URL,
+                // assign the default value (if provided) and skip to the next segment.
                 $urlSegmentExists = array_key_exists($index, $urlSegments);
 
                 if ($optional && !$urlSegmentExists) {
@@ -168,16 +199,12 @@ class Rule
                     continue;
                 }
 
-                /*
-                 * If the segment is not optional and there is no corresponding value in the URL, return false
-                 */
+                // If the segment is not optional and there is no corresponding value in the URL
                 if (!$optional && !$urlSegmentExists) {
                     return false;
                 }
 
-                /*
-                 * Validate the value with the regular expression
-                 */
+                // Validate the value with the regular expression
                 $regexp = Helper::getSegmentRegExp($patternSegment);
 
                 if ($regexp) {
@@ -186,18 +213,14 @@ class Rule
                             return false;
                         }
                     }
-                    catch (\Exception $ex) {
+                    catch (Exception $ex) {
                     }
                 }
 
-                /*
-                 * Set the parameter value
-                 */
+                // Set the parameter value
                 $parameters[$paramName] = $urlSegments[$index];
 
-                /*
-                 * Determine if wildcard and add stored parameters as a suffix
-                 */
+                // Determine if wildcard and add stored parameters as a suffix
                 if (Helper::segmentIsWildcard($patternSegment) && count($wildSegments)) {
                     $parameters[$paramName] .= Helper::rebuildUrl($wildSegments);
                 }
@@ -208,7 +231,7 @@ class Rule
     }
 
     /**
-     * Captures and removes every segment of a URL after a wildcard
+     * captureWildcardSegments captures and removes every segment of a URL after a wildcard
      * pattern segment is detected, until both collections of segments
      * are the same size.
      * @param array $urlSegments
@@ -247,7 +270,7 @@ class Rule
     }
 
     /**
-     * Unique route name
+     * name is a unique route name
      *
      * @param string $name Unique name for the router object
      * @return object Self
@@ -264,10 +287,10 @@ class Rule
     }
 
     /**
-     * Route match pattern
+     * pattern for the route match
      *
      * @param string $pattern Pattern used to match this rule
-     * @return object Self
+     * @return self
      */
     public function pattern($pattern = null)
     {
@@ -281,7 +304,7 @@ class Rule
     }
 
     /**
-     * Condition callback
+     * condition callback
      *
      * @param callback $callback Callback function to be used when providing custom route match conditions
      * @throws InvalidArgumentException When supplied argument is not a valid callback
@@ -306,7 +329,7 @@ class Rule
     }
 
     /**
-     * After match callback
+     * afterMatch callback
      *
      * @param callback $callback Callback function to be used to modify params after a successful match
      * @throws InvalidArgumentException When supplied argument is not a valid callback
@@ -328,5 +351,13 @@ class Rule
         }
 
         return $this->afterMatchCallback;
+    }
+
+    /**
+     * toArray
+     */
+    public function toArray()
+    {
+        return $this->config;
     }
 }

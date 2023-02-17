@@ -1,14 +1,11 @@
 <?php namespace October\Rain\Database;
 
-use Db;
 use File;
-use Eloquent;
+use Model;
 use Exception;
 
 /**
- * Database updater
- *
- * Executes database migration and seed scripts based on their filename.
+ * Updater executes database migration and seed scripts based on their filename.
  *
  * @package october\database
  * @author Alexey Bobkov, Samuel Georges
@@ -16,7 +13,7 @@ use Exception;
 class Updater
 {
     /**
-     * Sets up a migration or seed file.
+     * setUp a migration or seed file.
      */
     public function setUp($file)
     {
@@ -28,24 +25,22 @@ class Updater
 
         $this->isValidScript($object);
 
-        Eloquent::unguard();
+        Model::unguard();
 
-        Db::transaction(function () use ($object) {
-            if ($object instanceof Updates\Migration) {
-                $object->up();
-            }
-            elseif ($object instanceof Updates\Seeder) {
-                $object->run();
-            }
-        });
+        if ($object instanceof Updates\Migration) {
+            $this->runMethod($object, 'up');
+        }
+        elseif ($object instanceof Updates\Seeder) {
+            $this->runMethod($object, 'run');
+        }
 
-        Eloquent::reguard();
+        Model::reguard();
 
         return true;
     }
 
     /**
-     * Packs down a migration or seed file.
+     * packDown a migration or seed file.
      */
     public function packDown($file)
     {
@@ -57,21 +52,19 @@ class Updater
 
         $this->isValidScript($object);
 
-        Eloquent::unguard();
+        Model::unguard();
 
-        Db::transaction(function () use ($object) {
-            if ($object instanceof Updates\Migration) {
-                $object->down();
-            }
-        });
+        if ($object instanceof Updates\Migration) {
+            $this->runMethod($object, 'down');
+        }
 
-        Eloquent::reguard();
+        Model::reguard();
 
         return true;
     }
 
     /**
-     * Resolve a migration instance from a file.
+     * resolve a migration instance from a file.
      * @param  string  $file
      * @return object
      */
@@ -81,7 +74,11 @@ class Updater
             return;
         }
 
-        require_once $file;
+        $object = require_once $file;
+
+        if (is_object($object)) {
+            return $object;
+        }
 
         if ($class = $this->getClassFromFile($file)) {
             return new $class;
@@ -89,7 +86,15 @@ class Updater
     }
 
     /**
-     * Checks if the object is a valid update script.
+     * runMethod on a migration or seed
+     */
+    protected function runMethod($migration, $method)
+    {
+        $migration->{$method}();
+    }
+
+    /**
+     * isValidScript checks if the object is a valid update script.
      */
     protected function isValidScript($object)
     {
@@ -107,7 +112,7 @@ class Updater
     }
 
     /**
-     * Extracts the namespace and class name from a file.
+     * getClassFromFile extracts the namespace and class name from a file.
      * @param string $file
      * @return string
      */
@@ -132,9 +137,7 @@ class Updater
             }
 
             for (; $i < count($tokens); $i++) {
-                /*
-                 * Namespace opening
-                 */
+                // Namespace opening
                 if ($tokens[$i][0] === T_NAMESPACE) {
                     for ($j = $i + 1; $j < count($tokens); $j++) {
                         if ($tokens[$j] === ';') {
@@ -145,9 +148,7 @@ class Updater
                     }
                 }
 
-                /*
-                 * Class opening
-                 */
+                // Class opening
                 if ($tokens[$i][0] === T_CLASS && $tokens[$i-1][1] !== '::') {
                     $class = $tokens[$i+2][1];
                     break;

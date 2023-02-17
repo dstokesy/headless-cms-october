@@ -3,6 +3,7 @@
 use Carbon\Carbon;
 use Cms\Classes\Theme;
 use RainLab\Pages\Classes\Page;
+use RainLab\Pages\Classes\Menu;
 use RainLab\Pages\Classes\Router;
 use RainLab\Blog\Models\Post;
 
@@ -48,6 +49,39 @@ Route::group([
 		});
 	});
 
+	Route::group(['prefix' => 'menus'], function () {
+
+		Route::get('navigation', function () {
+			$theme = Theme::getActiveTheme();
+        	$menu = Menu::loadCached($theme, 'navigation');
+
+			$items = $menu->items;
+			$newItems = [];
+			
+			if ($items) {
+				foreach ($items as $key => $item) {
+					$url = $item->url;
+
+					if ($item->type == 'static-page') {
+						$page = Page::find($item->reference);
+
+						if ($page) {
+							$url = $page->url;
+						}
+					}
+
+					$newItems[] = [
+						'id'	=> $key,
+						'title'	=> $item->title,
+						'url'	=> $url
+					];
+				}
+			}
+
+			return response()->json($newItems, 200);
+		});
+	});
+
 	Route::group(['prefix' => 'blog'], function () {
 		Route::get('slugs', function () {
 			$posts = Post::select(['slug'])
@@ -67,8 +101,13 @@ Route::group([
 			$posts = Post::where('published', 1)
 				->where('published_at', '<', Carbon::now())
 				->orderBy('published_at', 'desc')
-				->get()
-				->toArray();
+				->get();
+
+			$posts = $posts->map(function($post) {
+				$postArray = $post->toArray();
+				$postArray['image'] = $post->image;
+				return $postArray;
+			});
 
 			return response()->json($posts, 200);
 		});
@@ -84,6 +123,15 @@ Route::group([
 			}
 
 			return response()->json(['error' => 'Post not found'], 500);
+		});
+	});
+
+	Route::group(['prefix' => 'form'], function () {
+		Route::post('contact', function () {
+			trace_log(post());
+			$success = true;
+
+			return response()->json($success, 200);
 		});
 	});
 });

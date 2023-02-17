@@ -3,6 +3,8 @@
 use October\Rain\Support\Facade;
 
 /**
+ * Form
+ *
  * @method static string open(array $options = [])
  * @method static string ajax(string $handler, array $options = [])
  * @method static string model(mixed $model, array $options = [])
@@ -43,8 +45,7 @@ use October\Rain\Support\Facade;
 class Form extends Facade
 {
     /**
-     * Get the registered name of the component.
-     *
+     * getFacadeAccessor returns the registered name of the component
      * @return string
      */
     protected static function getFacadeAccessor()

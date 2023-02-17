@@ -4,26 +4,27 @@ use Illuminate\Database\Eloquent\Model as EloquentModel;
 use Illuminate\Database\Eloquent\Collection as CollectionBase;
 use Illuminate\Database\Eloquent\SoftDeletingScope;
 
+/**
+ * SoftDelete trait for flagging models as deleted instead of actually deleting them.
+ *
+ * @package october\database
+ * @author Alexey Bobkov, Samuel Georges
+ */
 trait SoftDelete
 {
-
     /**
-     * Indicates if the model is currently force deleting.
-     *
-     * @var bool
+     * @var bool forceDeleting indicates if the model is currently force deleting.
      */
     protected $forceDeleting = false;
 
     /**
-     * Boot the soft deleting trait for a model.
-     *
-     * @return void
+     * bootSoftDelete trait for a model.
      */
     public static function bootSoftDelete()
     {
         static::addGlobalScope(new SoftDeletingScope);
 
-        static::restoring(function ($model) {
+        static::restoring(function($model) {
             /**
              * @event model.beforeRestore
              * Called before the model is restored from a soft delete
@@ -41,7 +42,7 @@ trait SoftDelete
             }
         });
 
-        static::restored(function ($model) {
+        static::restored(function($model) {
             /**
              * @event model.afterRestore
              * Called after the model is restored from a soft delete
@@ -61,9 +62,8 @@ trait SoftDelete
     }
 
     /**
-     * Helper method to check if the model is currently
+     * isSoftDelete helper method to check if the model is currently
      * being hard or soft deleted, useful in events.
-     *
      * @return bool
      */
     public function isSoftDelete()
@@ -72,9 +72,7 @@ trait SoftDelete
     }
 
     /**
-     * Force a hard delete on a soft deleted model.
-     *
-     * @return void
+     * forceDelete on a soft deleted model.
      */
     public function forceDelete()
     {
@@ -86,25 +84,22 @@ trait SoftDelete
     }
 
     /**
-     * Perform the actual delete query on this model instance.
-     *
-     * @return mixed
+     * performDeleteOnModel performs the actual delete query on this model instance.
      */
     protected function performDeleteOnModel()
     {
         if ($this->forceDeleting) {
             $this->performDeleteOnRelations();
-            return $this->withTrashed()->where($this->getKeyName(), $this->getKey())->forceDelete();
+            $this->newQuery()->withTrashed()->where($this->getKeyName(), $this->getKey())->forceDelete();
         }
 
         $this->performSoftDeleteOnRelations();
-        return $this->runSoftDelete();
+        $this->runSoftDelete();
     }
 
     /**
-     * Locates relations with softDelete flag and cascades the delete event.
-     *
-     * @return void
+     * performSoftDeleteOnRelations locates relations with softDelete flag and
+     * cascades the delete event.
      */
     protected function performSoftDeleteOnRelations()
     {
@@ -132,9 +127,7 @@ trait SoftDelete
     }
 
     /**
-     * Perform the actual delete query on this model instance.
-     *
-     * @return void
+     * runSoftDelete performs the actual delete query on this model instance.
      */
     protected function runSoftDelete()
     {
@@ -146,8 +139,7 @@ trait SoftDelete
     }
 
     /**
-     * Restore a soft-deleted model instance.
-     *
+     * restore a soft-deleted model instance.
      * @return bool|null
      */
     public function restore()
@@ -174,9 +166,8 @@ trait SoftDelete
     }
 
     /**
-     * Locates relations with softDelete flag and cascades the restore event.
-     *
-     * @return void
+     * performRestoreOnRelations locates relations with softDelete flag and cascades
+     * the restore event.
      */
     protected function performRestoreOnRelations()
     {
@@ -205,8 +196,7 @@ trait SoftDelete
     }
 
     /**
-     * Determine if the model instance has been soft-deleted.
-     *
+     * trashed determines if the model instance has been soft-deleted.
      * @return bool
      */
     public function trashed()
@@ -215,8 +205,7 @@ trait SoftDelete
     }
 
     /**
-     * Get a new query builder that includes soft deletes.
-     *
+     * withTrashed gets a new query builder that includes soft deletes.
      * @return \Illuminate\Database\Eloquent\Builder|static
      */
     public static function withTrashed()
@@ -225,8 +214,7 @@ trait SoftDelete
     }
 
     /**
-     * Get a new query builder that only includes soft deletes.
-     *
+     * onlyTrashed gets a new query builder that only includes soft deletes.
      * @return \Illuminate\Database\Eloquent\Builder|static
      */
     public static function onlyTrashed()
@@ -239,8 +227,7 @@ trait SoftDelete
     }
 
     /**
-     * Register a restoring model event with the dispatcher.
-     *
+     * restoring registers a restoring model event with the dispatcher.
      * @param  \Closure|string  $callback
      * @return void
      */
@@ -250,8 +237,7 @@ trait SoftDelete
     }
 
     /**
-     * Register a restored model event with the dispatcher.
-     *
+     * restored registers a restored model event with the dispatcher.
      * @param  \Closure|string  $callback
      * @return void
      */
@@ -261,8 +247,7 @@ trait SoftDelete
     }
 
     /**
-     * Get the name of the "deleted at" column.
-     *
+     * getDeletedAtColumn gets the name of the "deleted at" column.
      * @return string
      */
     public function getDeletedAtColumn()
@@ -271,12 +256,11 @@ trait SoftDelete
     }
 
     /**
-     * Get the fully qualified "deleted at" column.
-     *
+     * getQualifiedDeletedAtColumn gets the fully qualified "deleted at" column.
      * @return string
      */
     public function getQualifiedDeletedAtColumn()
     {
-        return $this->getTable().'.'.$this->getDeletedAtColumn();
+        return $this->qualifyColumn($this->getDeletedAtColumn());
     }
 }

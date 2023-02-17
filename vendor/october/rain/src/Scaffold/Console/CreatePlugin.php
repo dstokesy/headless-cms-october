@@ -1,92 +1,66 @@
 <?php namespace October\Rain\Scaffold\Console;
 
-use October\Rain\Scaffold\GeneratorCommand;
-use Symfony\Component\Console\Input\InputOption;
-use Symfony\Component\Console\Input\InputArgument;
+use October\Rain\Scaffold\GeneratorCommandBase;
 
-class CreatePlugin extends GeneratorCommand
+class CreatePlugin extends GeneratorCommandBase
 {
     /**
-     * The console command name.
-     *
-     * @var string
+     * @var string signature for the command
      */
-    protected $name = 'create:plugin';
+    protected $signature = 'create:plugin {namespace : The name of the plugin to create (eg: Acme.Blog)}
+        {--o|overwrite : Overwrite existing files with generated ones}';
 
     /**
-     * The console command description.
-     *
-     * @var string
+     * @var string description of the console command
      */
     protected $description = 'Creates a new plugin.';
 
     /**
-     * The type of class being generated.
-     *
-     * @var string
+     * @var string type of class being generated
      */
-    protected $type = 'Plugin';
+    protected $typeLabel = 'Plugin';
 
     /**
-     * A mapping of stub to generated file.
-     *
-     * @var array
+     * makeStubs makes all stubs
      */
-    protected $stubs = [
-        'plugin/plugin.stub'  => 'Plugin.php',
-        'plugin/version.stub' => 'updates/version.yaml',
-    ];
-
-    /**
-     * Prepare variables for stubs.
-     *
-     * return @array
-     */
-    protected function prepareVars()
+    public function makeStubs()
     {
-        /*
-         * Extract the author and name from the plugin code
-         */
-        $pluginCode = $this->argument('plugin');
-        $parts = explode('.', $pluginCode);
+        $this->makeStub('plugin/plugin.stub', 'Plugin.php');
+        $this->makeStub('plugin/version.stub', 'updates/version.yaml');
+        $this->makeStub('plugin/composer.stub', 'composer.json');
+    }
 
-        if (count($parts) != 2) {
-            $this->error('Invalid plugin name, either too many dots or not enough.');
-            $this->error('Example name: AuthorName.PluginName');
-            return;
+    /**
+     * prepareVars prepares variables for stubs
+     */
+    protected function prepareVars(): array
+    {
+        if (!$this->validateInput()) {
+            exit(1);
         }
 
-
-        $pluginName = array_pop($parts);
-        $authorName = array_pop($parts);
-
         return [
-            'name'   => $pluginName,
-            'author' => $authorName,
+            'namespace' => $this->argument('namespace'),
         ];
     }
 
-    /**
-     * Get the console command arguments.
-     *
-     * @return array
-     */
-    protected function getArguments()
+    protected function validateInput()
     {
-        return [
-            ['plugin', InputArgument::REQUIRED, 'The name of the plugin to create. Eg: RainLab.Blog'],
-        ];
-    }
+        if ($this->isAppNamespace()) {
+            $this->error('Cannot create plugin in app namespace');
+            return false;
+        }
 
-    /**
-     * Get the console command options.
-     *
-     * @return array
-     */
-    protected function getOptions()
-    {
-        return [
-            ['force', null, InputOption::VALUE_NONE, 'Overwrite existing files with generated ones.'],
-        ];
+        // Extract the author and name from the plugin code
+        $pluginCode = $this->argument('namespace');
+        $parts = explode('.', $pluginCode);
+
+        if (count($parts) !== 2) {
+            $this->error('Invalid plugin name, either too many dots or not enough.');
+            $this->error('Example name: AuthorName.PluginName');
+            return false;
+        }
+
+        return true;
     }
 }

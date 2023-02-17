@@ -1,5 +1,6 @@
 <?php namespace October\Rain\Mail;
 
+use App;
 use Illuminate\Mail\Mailable as MailableBase;
 
 /**
@@ -47,13 +48,15 @@ class Mailable extends MailableBase
      */
     public function withSerializedData($data)
     {
+        $this->viewData['_current_locale'] = $this->locale ?: App::getLocale();
+
         foreach ($data as $param => $value) {
             $this->viewData[$param] = $this->getSerializedPropertyValue($value);
         }
 
         return $this;
     }
-    
+
     /**
      * Set the subject for the message.
      *
@@ -62,11 +65,10 @@ class Mailable extends MailableBase
      */
     protected function buildSubject($message)
     {
-        // If a custom subject was set, then set it as the message subject
-        // Otherwise attempt to set the subject if the message doesn't already have one set
         if ($this->subject) {
             $message->subject($this->subject);
         }
+
         return $this;
     }
 }

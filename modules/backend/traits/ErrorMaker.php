@@ -3,8 +3,7 @@
 use System\Classes\ErrorHandler;
 
 /**
- * Error Maker Trait
- * Adds exception based methods to a class, goes well with `System\Traits\ViewMaker`.
+ * ErrorMaker Trait adds exception based methods to a class, goes well with `System\Traits\ViewMaker`
  *
  * @package october\backend
  * @author Alexey Bobkov, Samuel Georges
@@ -12,12 +11,12 @@ use System\Classes\ErrorHandler;
 trait ErrorMaker
 {
     /**
-     * @var string Object used for storing a fatal error.
+     * @var string|null fatalError stores the object used for a fatal error.
      */
     protected $fatalError;
 
     /**
-     * @return boolean Whether a fatal error has been set or not.
+     * hasFatalError returns true if a fatal error has been set.
      */
     public function hasFatalError()
     {
@@ -25,7 +24,7 @@ trait ErrorMaker
     }
 
     /**
-     * @return string The fatal error message
+     * getFatalError returns error message
      */
     public function getFatalError()
     {
@@ -33,7 +32,7 @@ trait ErrorMaker
     }
 
     /**
-     * Sets standard page variables in the case of a controller error.
+     * handleError sets standard page variables in the case of a controller error.
      */
     public function handleError($exception)
     {

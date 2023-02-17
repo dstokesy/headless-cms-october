@@ -3,27 +3,24 @@
 use Illuminate\Routing\UrlGenerator;
 
 /**
- * Html builder
- *
- * Extension of illuminate/html, injects a session key to each form opening.
+ * HtmlBuilder builds HTML elements
  *
  * @package october\html
  * @author Alexey Bobkov, Samuel Georges
  */
 class HtmlBuilder
 {
-
     use \Illuminate\Support\Traits\Macroable;
 
     /**
-     * The URL generator instance.
+     * url generator instance.
      *
      * @var \Illuminate\Routing\UrlGenerator
      */
     protected $url;
 
     /**
-     * Create a new HTML builder instance.
+     * __construct a new HTML builder instance.
      *
      * @param  \Illuminate\Routing\UrlGenerator  $url
      * @return void
@@ -34,7 +31,7 @@ class HtmlBuilder
     }
 
     /**
-     * Convert an HTML string to entities.
+     * entities converts an HTML string to entities.
      *
      * @param  string  $value
      * @return string
@@ -45,7 +42,7 @@ class HtmlBuilder
     }
 
     /**
-     * Convert entities to HTML characters.
+     * decode converts entities to HTML characters.
      *
      * @param  string  $value
      * @return string
@@ -56,7 +53,7 @@ class HtmlBuilder
     }
 
     /**
-     * Generate a link to a JavaScript file.
+     * script generates a link to a JavaScript file.
      *
      * @param  string  $url
      * @param  array   $attributes
@@ -71,7 +68,7 @@ class HtmlBuilder
     }
 
     /**
-     * Generate a link to a CSS file.
+     * style generates a link to a CSS file.
      *
      * @param  string  $url
      * @param  array   $attributes
@@ -90,7 +87,7 @@ class HtmlBuilder
     }
 
     /**
-     * Generate an HTML image element.
+     * image generates an HTML image element.
      *
      * @param  string  $url
      * @param  string  $alt
@@ -106,7 +103,7 @@ class HtmlBuilder
     }
 
     /**
-     * Generate a HTML link.
+     * link generates a HTML link.
      *
      * @param  string  $url
      * @param  string  $title
@@ -126,7 +123,7 @@ class HtmlBuilder
     }
 
     /**
-     * Generate a HTTPS HTML link.
+     * secureLink generates a HTTPS HTML link.
      *
      * @param  string  $url
      * @param  string  $title
@@ -139,7 +136,7 @@ class HtmlBuilder
     }
 
     /**
-     * Generate a HTML link to an asset.
+     * linkAsset generates a HTML link to an asset.
      *
      * @param  string  $url
      * @param  string  $title
@@ -155,7 +152,7 @@ class HtmlBuilder
     }
 
     /**
-     * Generate a HTTPS HTML link to an asset.
+     * linkSecureAsset generates a HTTPS HTML link to an asset.
      *
      * @param  string  $url
      * @param  string  $title
@@ -168,7 +165,7 @@ class HtmlBuilder
     }
 
     /**
-     * Generate a HTML link to a named route.
+     * linkRoute generates a HTML link to a named route.
      *
      * @param  string  $name
      * @param  string  $title
@@ -182,7 +179,7 @@ class HtmlBuilder
     }
 
     /**
-     * Generate a HTML link to a controller action.
+     * linkAction generates a HTML link to a controller action.
      *
      * @param  string  $action
      * @param  string  $title
@@ -196,7 +193,7 @@ class HtmlBuilder
     }
 
     /**
-     * Generate a HTML link to an email address.
+     * mailto generates a HTML link to an email address.
      *
      * @param  string  $email
      * @param  string  $title
@@ -215,7 +212,7 @@ class HtmlBuilder
     }
 
     /**
-     * Obfuscate an e-mail address to prevent spam-bots from sniffing it.
+     * email obfuscates an e-mail address to prevent spam-bots from sniffing it.
      *
      * @param  string  $email
      * @return string
@@ -226,7 +223,7 @@ class HtmlBuilder
     }
 
     /**
-     * Generate an ordered list of items.
+     * ol generate an ordered list of items.
      *
      * @param  array   $list
      * @param  array   $attributes
@@ -238,7 +235,7 @@ class HtmlBuilder
     }
 
     /**
-     * Generate an un-ordered list of items.
+     * ul generates an un-ordered list of items.
      *
      * @param  array   $list
      * @param  array   $attributes
@@ -250,7 +247,7 @@ class HtmlBuilder
     }
 
     /**
-     * Create a listing HTML element.
+     * listing HTML element.
      *
      * @param  string  $type
      * @param  array   $list
@@ -261,7 +258,7 @@ class HtmlBuilder
     {
         $html = '';
 
-        if (count($list) == 0) {
+        if (count($list) === 0) {
             return $html;
         }
 
@@ -278,7 +275,7 @@ class HtmlBuilder
     }
 
     /**
-     * Create the HTML for a listing element.
+     * listingElement creates the HTML for a listing element.
      *
      * @param  mixed    $key
      * @param  string  $type
@@ -295,11 +292,11 @@ class HtmlBuilder
     }
 
     /**
-     * Create the HTML for a nested listing attribute.
+     * nestedListing creates the HTML for a nested listing attribute.
      *
      * @param  mixed    $key
      * @param  string  $type
-     * @param  array  $value
+     * @param  string  $value
      * @return string
      */
     protected function nestedListing($key, $type, $value)
@@ -336,11 +333,11 @@ class HtmlBuilder
     }
 
     /**
-     * Build a single attribute element.
+     * attributeElement builds a single attribute element.
      *
      * @param  string  $key
      * @param  string  $value
-     * @return string|void
+     * @return string
      */
     protected function attributeElement($key, $value)
     {
@@ -355,13 +352,15 @@ class HtmlBuilder
         if (is_array($value)) {
             $value = substr(htmlspecialchars(json_encode($value), ENT_QUOTES, 'UTF-8'), 1, -1);
         }
+        else {
+            $value = e($value);
+        }
 
-        return $key.'="'.e($value).'"';
+        return $key.'="'.$value.'"';
     }
 
     /**
-     * Obfuscate a string to prevent spam-bots from sniffing it.
-     *
+     * obfuscate a string to prevent spam-bots from sniffing it.
      * @param  string  $value
      * @return string
      */
@@ -395,17 +394,18 @@ class HtmlBuilder
     }
 
     /**
-     * Removes HTML from a string
-     * @param $string String to strip HTML from
+     * strip removes HTML from a string, with allowed tags, e.g. <p>
+     * @param $string
+     * @param $allow
      * @return string
      */
-    public static function strip($string)
+    public static function strip($string, $allow = '')
     {
-        return htmlspecialchars_decode(strip_tags($string));
+        return htmlspecialchars_decode(strip_tags($string, $allow));
     }
 
     /**
-     * Limits HTML with specific length with a proper tag handling.
+     * limit HTML with specific length with a proper tag handling.
      * @param string $html HTML string to limit
      * @param int $maxLength String length to truncate at
      * @param  string  $end
@@ -441,17 +441,17 @@ class HtmlBuilder
                 break;
             }
 
-            if ($tag[0] == '&' || ord($tag) >= 0x80) {
+            if ($tag[0] === '&' || ord($tag) >= 0x80) {
                 $result .= $tag;
                 $printedLength++;
             }
             else {
                 $tagName = $match[1][0];
-                if ($tag[1] == '/') {
+                if ($tag[1] === '/') {
                     $openingTag = array_pop($tags);
                     $result .= $tag;
                 }
-                elseif ($tag[strlen($tag) - 2] == '/') {
+                elseif ($tag[strlen($tag) - 2] === '/') {
                     $result .= $tag;
                 }
                 else {
@@ -475,7 +475,33 @@ class HtmlBuilder
     }
 
     /**
-     * Cleans HTML to prevent most XSS attacks.
+     * minify makes HTML more compact
+     */
+    public static function minify($html)
+    {
+        $search = [
+            // Strip whitespaces after tags, except space
+            '/\>[^\S ]+/s',
+            // Strip whitespaces before tags, except space
+            '/[^\S ]+\</s',
+            // Shorten multiple whitespace sequences
+            '/(\s)+/s',
+            // Remove HTML comments
+            '/<!--(.|\s)*?-->/'
+        ];
+
+        $replace = [
+            '>',
+            '<',
+            '\\1',
+            ''
+        ];
+
+        return preg_replace($search, $replace, $html);
+    }
+
+    /**
+     * clean HTML to prevent most XSS attacks.
      * @param  string $html HTML
      * @return string Cleaned HTML
      */
@@ -488,7 +514,7 @@ class HtmlBuilder
             $html = str_replace(['&amp;','&lt;','&gt;'], ['&amp;amp;','&amp;lt;','&amp;gt;'], $html);
             $html = preg_replace('#(&\#*\w+)[\x00-\x20]+;#u', "$1;", $html);
             $html = preg_replace('#(&\#x*)([0-9A-F]+);*#iu', "$1$2;", $html);
-            $html = html_entity_decode($html, ENT_COMPAT|ENT_HTML5, 'UTF-8');
+            $html = html_entity_decode($html, ENT_COMPAT, 'UTF-8');
 
             // Remove any attribute starting with "on" or xmlns
             $html = preg_replace('#(<[^>]+[\x00-\x20\"\'\/])(on|xmlns)[^>]*>#iUu', "$1>", $html);

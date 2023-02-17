@@ -3,46 +3,40 @@
 use October\Rain\Support\Str;
 use Exception;
 
+/**
+ * Sluggable trait
+ *
+ * @package october\database
+ * @author Alexey Bobkov, Samuel Georges
+ */
 trait Sluggable
 {
-
     /**
-     * @var array List of attributes to automatically generate unique URL names (slugs) for.
+     * @var array slugs are attributes to automatically generate unique URL names (slugs) for.
      *
      * protected $slugs = [];
      */
 
     /**
-     * @var bool Allow trashed slugs to be counted in the slug generation.
-     *
-     * protected $allowTrashedSlugs = false;
+     * initializeSluggable trait for a model.
      */
-
-    /**
-     * Boot the sluggable trait for a model.
-     * @return void
-     */
-    public static function bootSluggable()
+    public function initializeSluggable()
     {
-        if (!property_exists(get_called_class(), 'slugs')) {
+        if (!is_array($this->slugs)) {
             throw new Exception(sprintf(
-                'You must define a $slugs property in %s to use the Sluggable trait.',
-                get_called_class()
+                'The $slugs property in %s must be an array to use the Sluggable trait.',
+                get_class($this)
             ));
         }
 
-        /*
-         * Set slugged attributes on new records and existing records if slug is missing.
-         */
-        static::extend(function ($model) {
-            $model->bindEvent('model.saveInternal', function () use ($model) {
-                $model->slugAttributes();
-            }, 600);
+        // Set slugged attributes on new records and existing records if slug is missing.
+        $this->bindEvent('model.saveInternal', function () {
+            $this->slugAttributes();
         });
     }
 
     /**
-     * Adds slug attributes to the dataset, used before saving.
+     * slugAttributes adds slug attributes to the dataset, used before saving.
      * @return void
      */
     public function slugAttributes()
@@ -53,12 +47,13 @@ trait Sluggable
     }
 
     /**
-     * Sets a single slug attribute value.
-     * @param string $slugAttribute Attribute to populate with the slug.
-     * @param mixed $sourceAttributes Attribute(s) to generate the slug from.
-     * Supports dotted notation for relations.
-     * @param int $maxLength Maximum length for the slug not including the counter.
-     * @return string The generated value.
+     * setSluggedValue sets a single slug attribute value, using source attributes
+     * to generate the slug from and a maximum length for the slug not including
+     * the counter. Source attributes support dotted notation for relations.
+     * @param string $slugAttribute
+     * @param mixed $sourceAttributes
+     * @param int $maxLength
+     * @return string
      */
     public function setSluggedValue($slugAttribute, $sourceAttributes, $maxLength = 175)
     {
@@ -80,24 +75,29 @@ trait Sluggable
             $slug = $this->{$slugAttribute};
         }
 
+        // Source attributes contain empty values, nothing to slug and this
+        // happens when the attributes are not required by the validator
+        if (!mb_strlen(trim($slug))) {
+            return $this->{$slugAttribute} = '';
+        }
+
         return $this->{$slugAttribute} = $this->getSluggableUniqueAttributeValue($slugAttribute, $slug);
     }
 
     /**
-     * Ensures a unique attribute value, if the value is already used a counter suffix is added.
-     * @param string $name The database column name.
-     * @param value $value The desired column value.
-     * @return string A safe value that is unique.
+     * getSluggableUniqueAttributeValue ensures a unique attribute value, if the value is already
+     * used a counter suffix is added. Returns a safe value that is unique.
+     * @param string $name
+     * @param mixed $value
+     * @return string
      */
     protected function getSluggableUniqueAttributeValue($name, $value)
     {
         $counter = 1;
         $separator = $this->getSluggableSeparator();
         $_value = $value;
-        while (($this->methodExists('withTrashed') && $this->allowTrashedSlugs) ?
-            $this->newSluggableQuery()->where($name, $_value)->withTrashed()->count() > 0 :
-            $this->newSluggableQuery()->where($name, $_value)->count() > 0
-        ) {
+
+        while ($this->newSluggableQuery()->where($name, $_value)->count() > 0) {
             $counter++;
             $_value = $value . $separator . $counter;
         }
@@ -106,18 +106,7 @@ trait Sluggable
     }
 
     /**
-     * Returns a query that excludes the current record if it exists
-     * @return Builder
-     */
-    protected function newSluggableQuery()
-    {
-        return $this->exists
-            ? $this->newQuery()->where($this->getKeyName(), '<>', $this->getKey())
-            : $this->newQuery();
-    }
-
-    /**
-     * Get an attribute relation value using dotted notation.
+     * getSluggableSourceAttributeValue using dotted notation.
      * Eg: author.name
      * @return mixed
      */
@@ -141,11 +130,37 @@ trait Sluggable
     }
 
     /**
-     * Override the default slug separator.
+     * getSluggableSeparator is an override for the default slug separator.
      * @return string
      */
     public function getSluggableSeparator()
     {
         return defined('static::SLUG_SEPARATOR') ? static::SLUG_SEPARATOR : '-';
+    }
+
+    /**
+     * newSluggableQuery returns a query that excludes the current record if it exists
+     * @return Builder
+     */
+    protected function newSluggableQuery()
+    {
+        $query = $this->newQuery();
+
+        if ($this->exists) {
+            $query->where($this->getKeyName(), '<>', $this->getKey());
+        }
+
+        if ($this->isClassInstanceOf(\October\Contracts\Database\SoftDeleteInterface::class)) {
+            $query->withTrashed();
+        }
+
+        if (
+            $this->isClassInstanceOf(\October\Contracts\Database\MultisiteInterface::class) &&
+            $this->isMultisiteEnabled()
+        ) {
+            $query->withSite($this->{$this->getSiteIdColumn()});
+        }
+
+        return $query;
     }
 }

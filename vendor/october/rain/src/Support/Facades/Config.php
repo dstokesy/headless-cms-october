@@ -3,6 +3,8 @@
 use October\Rain\Support\Facade;
 
 /**
+ * Config
+ *
  * @method static bool has(string $key)
  * @method static bool hasGroup(string $key)
  * @method static mixed get(array|string $key, $default = null)
@@ -30,8 +32,7 @@ use October\Rain\Support\Facade;
 class Config extends Facade
 {
     /**
-     * Get the registered name of the component.
-     *
+     * getFacadeAccessor returns the registered name of the component
      * @return string
      */
     protected static function getFacadeAccessor()

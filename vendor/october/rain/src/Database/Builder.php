@@ -14,11 +14,13 @@ use October\Rain\Support\Facades\DbDongle;
  */
 class Builder extends BuilderModel
 {
+    use \October\Rain\Database\Concerns\HasNicerPagination;
+
     /**
      * Get an array with the values of a given column.
      *
-     * @param string $column
-     * @param string|null $key
+     * @param  string  $column
+     * @param  string|null  $key
      * @return array
      */
     public function lists($column, $key = null)
@@ -28,9 +30,9 @@ class Builder extends BuilderModel
 
     /**
      * Perform a search on this query for term found in columns.
-     * @param string $term Search query
-     * @param array $columns Table columns to search
-     * @param string $mode Search mode: all, any, exact.
+     * @param  string $term  Search query
+     * @param  array $columns Table columns to search
+     * @param  string $mode  Search mode: all, any, exact.
      * @return self
      */
     public function searchWhere($term, $columns = [], $mode = 'all')
@@ -40,9 +42,9 @@ class Builder extends BuilderModel
 
     /**
      * Add an "or search where" clause to the query.
-     * @param string $term Search query
-     * @param array $columns Table columns to search
-     * @param string $mode Search mode: all, any, exact.
+     * @param  string $term  Search query
+     * @param  array $columns Table columns to search
+     * @param  string $mode  Search mode: all, any, exact.
      * @return self
      */
     public function orSearchWhere($term, $columns = [], $mode = 'all')
@@ -68,29 +70,30 @@ class Builder extends BuilderModel
         }
 
         if ($mode === 'exact') {
-            $this->where(function (Builder $query) use ($columns, $term) {
+            $this->where(function ($query) use ($columns, $term) {
                 foreach ($columns as $field) {
                     if (!strlen($term)) {
                         continue;
                     }
-                    $fieldSql = $this->query->raw(sprintf("lower(%s)", DbDongle::cast($field, 'text')));
-                    $termSql = '%' . trim(mb_strtolower($term)) . '%';
+                    $fieldSql = $this->query->raw(sprintf("lower(%s)", DbDongle::cast($field, 'TEXT')));
+                    $termSql = '%'.trim(mb_strtolower($term)).'%';
                     $query->orWhere($fieldSql, 'LIKE', $termSql);
                 }
             }, null, null, $boolean);
-        } else {
+        }
+        else {
             $words = explode(' ', $term);
             $wordBoolean = $mode === 'any' ? 'or' : 'and';
 
-            $this->where(function (Builder $query) use ($columns, $words, $wordBoolean) {
+            $this->where(function ($query) use ($columns, $words, $wordBoolean) {
                 foreach ($columns as $field) {
-                    $query->orWhere(function (Builder $query) use ($field, $words, $wordBoolean) {
+                    $query->orWhere(function ($query) use ($field, $words, $wordBoolean) {
                         foreach ($words as $word) {
                             if (!strlen($word)) {
                                 continue;
                             }
-                            $fieldSql = $this->query->raw(sprintf("lower(%s)", DbDongle::cast($field, 'text')));
-                            $wordSql = '%' . trim(mb_strtolower($word)) . '%';
+                            $fieldSql = $this->query->raw(sprintf("lower(%s)", DbDongle::cast($field, 'TEXT')));
+                            $wordSql = '%'.trim(mb_strtolower($word)).'%';
                             $query->where($fieldSql, 'LIKE', $wordSql, $wordBoolean);
                         }
                     });
@@ -102,33 +105,30 @@ class Builder extends BuilderModel
     }
 
     /**
-     * Paginate the given query.
+     * paginate the given query.
      *
-     * @param int $perPage
-     * @param int $currentPage
-     * @param array $columns
-     * @param string $pageName
+     * @param  int  $perPage
+     * @param  array  $columns
+     * @param  string $pageName
+     * @param  int  $page
      * @return \Illuminate\Contracts\Pagination\LengthAwarePaginator
      */
-    public function paginate($perPage = null, $currentPage = null, $columns = ['*'], $pageName = 'page')
+    public function paginate($perPage = null, $columns = ['*'], $pageName = 'page', $page = null)
     {
-        /*
-         * Engage Laravel signature support
-         *
-         * paginate($perPage, $columns, $pageName, $currentPage)
-         */
-        if (is_array($currentPage)) {
-            $_columns = $columns;
-            $_currentPage = $currentPage;
-            $_pageName = $pageName;
+        // Legacy signature support
+        // paginate($perPage, $page, $columns, $pageName)
+        if (!is_array($columns)) {
+            $_currentPage = $columns;
+            $_columns = $pageName;
+            $_pageName = $page;
 
-            $columns = $_currentPage;
-            $pageName = is_string($_columns) ? $_columns : 'page';
-            $currentPage = $_pageName === 'page' ? null : $_pageName;
+            $columns = is_array($_columns) ? $_columns : ['*'];
+            $pageName = $_pageName !== null ? $_pageName : 'page';
+            $page = is_array($_currentPage) ? null : $_currentPage;
         }
 
-        if (!$currentPage) {
-            $currentPage = Paginator::resolveCurrentPage($pageName);
+        if (!$page) {
+            $page = Paginator::resolveCurrentPage($pageName);
         }
 
         if (!$perPage) {
@@ -136,37 +136,35 @@ class Builder extends BuilderModel
         }
 
         $total = $this->toBase()->getCountForPagination();
-        $this->forPage((int) $currentPage, (int) $perPage);
+        $this->forPage((int) $page, (int) $perPage);
 
-        return $this->paginator($this->get($columns), $total, $perPage, $currentPage, [
+        return $this->paginator($this->get($columns), $total, $perPage, $page, [
             'path' => Paginator::resolveCurrentPath(),
             'pageName' => $pageName
         ]);
     }
 
     /**
-     * Paginate the given query into a simple paginator.
+     * simplePaginate the given query into a simple paginator.
      *
-     * @param int $perPage
-     * @param int $currentPage
-     * @param array $columns
+     * @param  int  $perPage
+     * @param  array  $columns
+     * @param  string $pageName
+     * @param  int  $currentPage
      * @return \Illuminate\Contracts\Pagination\Paginator
      */
-    public function simplePaginate($perPage = null, $currentPage = null, $columns = ['*'], $pageName = 'page')
+    public function simplePaginate($perPage = null, $columns = ['*'], $pageName = 'page', $currentPage = null)
     {
-        /*
-         * Engage Laravel signature support
-         *
-         * paginate($perPage, $columns, $pageName, $currentPage)
-         */
-        if (is_array($currentPage)) {
-            $_columns = $columns;
-            $_currentPage = $currentPage;
-            $_pageName = $pageName;
+        // Legacy signature support
+        // paginate($perPage, $currentPage, $columns, $pageName)
+        if (!is_array($columns)) {
+            $_currentPage = $columns;
+            $_columns = $pageName;
+            $_pageName = $currentPage;
 
-            $columns = $_currentPage;
-            $pageName = is_string($_columns) ? $_columns : 'page';
-            $currentPage = $_pageName === 'page' ? null : $_pageName;
+            $columns = is_array($_columns) ? $_columns : ['*'];
+            $pageName = $_pageName !== null ? $_pageName : 'page';
+            $currentPage = is_array($_currentPage) ? null : $_currentPage;
         }
 
         if (!$currentPage) {
@@ -187,16 +185,27 @@ class Builder extends BuilderModel
 
     /**
      * Dynamically handle calls into the query instance.
-     * @param string $method
-     * @param array $parameters
+     * @param  string  $method
+     * @param  array   $parameters
      * @return mixed
      */
     public function __call($method, $parameters)
     {
-        if ($this->model->methodExists($scope = 'scope' . ucfirst($method))) {
+        if ($this->model->methodExists($scope = 'scope'.ucfirst($method))) {
             return $this->callScope([$this->model, $scope], $parameters);
         }
 
         return parent::__call($method, $parameters);
+    }
+
+    /**
+     * addWhereExistsQuery modifies the Laravel version to strip ORDER BY from the query,
+     * which is redundant in this context, also forbidden by the SQL Server driver.
+     */
+    public function addWhereExistsQuery($query, $boolean = 'and', $not = false)
+    {
+        $query->reorder();
+
+        return parent::addWhereExistsQuery($query, $boolean, $not);
     }
 }

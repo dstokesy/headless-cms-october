@@ -2,21 +2,24 @@
 
 namespace Illuminate\Database\Console\Migrations;
 
-use Illuminate\Support\Str;
-use Illuminate\Support\Composer;
+use Illuminate\Contracts\Console\PromptsForMissingInput;
 use Illuminate\Database\Migrations\MigrationCreator;
+use Illuminate\Support\Composer;
+use Illuminate\Support\Str;
 
-class MigrateMakeCommand extends BaseCommand
+class MigrateMakeCommand extends BaseCommand implements PromptsForMissingInput
 {
     /**
      * The console command signature.
      *
      * @var string
      */
-    protected $signature = 'make:migration {name : The name of the migration.}
-        {--create= : The table to be created.}
-        {--table= : The table to migrate.}
-        {--path= : The location where the migration file should be created.}';
+    protected $signature = 'make:migration {name : The name of the migration}
+        {--create= : The table to be created}
+        {--table= : The table to migrate}
+        {--path= : The location where the migration file should be created}
+        {--realpath : Indicate any provided migration file paths are pre-resolved absolute paths}
+        {--fullpath : Output the full path of the migration (Deprecated)}';
 
     /**
      * The console command description.
@@ -83,11 +86,7 @@ class MigrateMakeCommand extends BaseCommand
         // "create" in the name. This will allow us to provide a convenient way
         // of creating migrations that create new tables for the application.
         if (! $table) {
-            if (preg_match('/^create_(\w+)_table$/', $name, $matches)) {
-                $table = $matches[1];
-
-                $create = true;
-            }
+            [$table, $create] = TableGuesser::guess($name);
         }
 
         // Now we are ready to write the migration out to disk. Once we've written
@@ -103,16 +102,16 @@ class MigrateMakeCommand extends BaseCommand
      *
      * @param  string  $name
      * @param  string  $table
-     * @param  bool    $create
+     * @param  bool  $create
      * @return string
      */
     protected function writeMigration($name, $table, $create)
     {
-        $file = pathinfo($this->creator->create(
+        $file = $this->creator->create(
             $name, $this->getMigrationPath(), $table, $create
-        ), PATHINFO_FILENAME);
+        );
 
-        $this->line("<info>Created Migration:</info> {$file}");
+        $this->components->info(sprintf('Migration [%s] created successfully.', $file));
     }
 
     /**
@@ -123,9 +122,23 @@ class MigrateMakeCommand extends BaseCommand
     protected function getMigrationPath()
     {
         if (! is_null($targetPath = $this->input->getOption('path'))) {
-            return $this->laravel->basePath().'/'.$targetPath;
+            return ! $this->usingRealPath()
+                            ? $this->laravel->basePath().'/'.$targetPath
+                            : $targetPath;
         }
 
         return parent::getMigrationPath();
+    }
+
+    /**
+     * Prompt for missing input arguments using the returned questions.
+     *
+     * @return array
+     */
+    protected function promptForMissingArgumentsUsing()
+    {
+        return [
+            'name' => 'What should the migration be named?',
+        ];
     }
 }

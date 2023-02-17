@@ -17,7 +17,7 @@ class ValidationTest extends TestCase
 
         $this->exists = true;
         $this->assertEquals([
-            'email' => ['unique:mysql.users,email,7,the_id']
+            'email' => ['unique:users,email,7,the_id']
         ], $this->processValidationRules($rules));
 
         $this->exists = false;
@@ -32,7 +32,7 @@ class ValidationTest extends TestCase
 
         $this->exists = true;
         $this->assertEquals([
-            'email' => ['unique:mysql.users,email_address,7,the_id']
+            'email' => ['unique:users,email_address,7,the_id']
         ], $this->processValidationRules($rules));
 
         $this->exists = false;
@@ -47,7 +47,7 @@ class ValidationTest extends TestCase
 
         $this->exists = true;
         $this->assertEquals([
-            'email' => ['unique:mysql.users,email_address,7,the_id']
+            'email' => ['unique:users,email_address,7,the_id']
         ], $this->processValidationRules($rules));
 
         $this->exists = false;
@@ -62,18 +62,28 @@ class ValidationTest extends TestCase
 
         $this->exists = true;
         $this->assertEquals([
-            'email' => ['unique:mysql.users,email_address,20,id,account_id,1']
+            'email' => ['unique:users,email_address,20,id,account_id,1']
         ], $this->processValidationRules($rules));
 
         $this->exists = false;
         $this->assertEquals([
             'email' => ['unique:users,email_address,NULL,id,account_id,1']
         ], $this->processValidationRules($rules));
-    }
-    
-    protected function getConnectionName()
-    {
-        return 'mysql';
+
+        /*
+         * Adding multiple additional where clauses
+         */
+        $rules = ['email' => 'unique:users,email_address,NULL,id,account_id,1,account_name,"Foo",user_id,3'];
+
+        $this->exists = true;
+        $this->assertEquals([
+            'email' => ['unique:users,email_address,20,id,account_id,1,account_name,"Foo",user_id,3']
+        ], $this->processValidationRules($rules));
+
+        $this->exists = false;
+        $this->assertEquals([
+            'email' => ['unique:users,email_address,NULL,id,account_id,1,account_name,"Foo",user_id,3']
+        ], $this->processValidationRules($rules));
     }
 
     protected function getTable()
